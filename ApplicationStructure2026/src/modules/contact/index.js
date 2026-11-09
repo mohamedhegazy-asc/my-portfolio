@@ -1,0 +1,2 @@
+export { default as contactRouter } from './contact.controller.js'
+
