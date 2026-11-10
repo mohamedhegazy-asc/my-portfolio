@@ -2,20 +2,26 @@
   "name": "portfolio-mern",
   "version": "1.0.0",
   "description": "Modern Personal Portfolio Website - MERN Stack Architecture",
+  "type": "module",
   "scripts": {
     "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"cyan,magenta\" \"npm run dev:backend\" \"npm run dev:frontend\"",
     "start": "npm run dev",
     "dev:backend": "npm --prefix ApplicationStructure2026 run start:dev",
     "dev:frontend": "npm --prefix client run dev",
     "build": "npm --prefix client run build",
+    "vercel-build": "npm --prefix client run build",
     "install:all": "npm --prefix ApplicationStructure2026 install && npm --prefix client install"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
   },
-  "author": "Mohamed Mahmoud Ali Hegazy",
-  "license": "ISC",
   "dependencies": {
-    "mongodb": "^7.8.0"
-  }
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.3",
+    "mongoose": "^9.12.0"
+  },
+  "author": "Mohamed Mahmoud Ali Hegazy",
+  "license": "ISC"
 }

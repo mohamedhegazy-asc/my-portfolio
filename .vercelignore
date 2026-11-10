@@ -1,0 +1,10 @@
+.git
+.github
+node_modules
+client/node_modules
+ApplicationStructure2026/node_modules
+.env
+.env.local
+.env.development
+.env.test
+*.log

@@ -13,40 +13,46 @@ import {
     analyticsRouter,
 } from './modules/index.js'
 
-async function bootstrap() {
+export function createApp() {
     const app = express()
 
-    // 1. Connect to Database & run seeds
-    await connectDB()
-    await seedDB()
-
-    // 2. CORS configuration
+    // 1. CORS configuration - universal support for localhost, Vercel preview URLs and custom domains
     app.use(cors({
-        origin: [CLIENT_URL, 'http://localhost:5173', 'http://127.0.0.1:5173'],
+        origin: true,
         credentials: true,
     }))
 
-    // 3. Body parsers
+    // 2. Body parsers
     app.use(express.json())
     app.use(express.urlencoded({ extended: true }))
 
-    // 4. API Endpoints
-    app.get('/', (req, res) => {
+    // 3. Normalize routing: ensure requests routed with or without /api prefix match correctly
+    app.use((req, res, next) => {
+        if (!req.url.startsWith('/api') && req.url !== '/' && !req.url.startsWith('/auth') && !req.url.startsWith('/user')) {
+            req.url = '/api' + req.url
+        }
+        next()
+    })
+
+    // 4. Base API status endpoint
+    app.get(['/', '/api'], (req, res) => {
         return res.status(200).json({
             status: 'online',
             service: 'Portfolio REST API & Admin CMS',
-            version: '2026.2',
+            environment: NODE_ENV,
+            version: '2026.3',
             endpoints: {
                 profile: '/api/profile',
                 projects: '/api/projects',
                 articles: '/api/articles',
                 contact: '/api/contact',
+                analytics: '/api/analytics',
                 messages: '/api/contact/messages'
             }
         })
     })
 
-    // Portfolio & CMS API routes
+    // 5. Portfolio & CMS API routes
     app.use('/api/profile', profileRouter)
     app.use('/api/projects', projectRouter)
     app.use('/api/articles', articleRouter)
@@ -57,7 +63,7 @@ async function bootstrap() {
     app.use('/auth', authRouter)
     app.use('/user', userRouter)
 
-    // 5. 404 Route handling (compatible with Express 5)
+    // 6. 404 Route handling
     app.use((req, res) => {
         return res.status(404).json({
             success: false,
@@ -65,7 +71,7 @@ async function bootstrap() {
         })
     })
 
-    // 6. Centralized Error-handling middleware
+    // 7. Centralized Error-handling middleware
     app.use((error, req, res, next) => {
         const status = error.cause?.status ?? error.status ?? 500
         const message = error.message || 'Something went wrong on the server'
@@ -78,9 +84,19 @@ async function bootstrap() {
         })
     })
 
+    return app
+}
+
+export default async function bootstrap() {
+    const app = createApp()
+
+    // Connect to Database & run seeds
+    await connectDB()
+    await seedDB()
+
     app.listen(port, () => {
         console.log(`Server successfully started and listening on http://localhost:${port}`)
     })
-}
 
-export default bootstrap
+    return app
+}

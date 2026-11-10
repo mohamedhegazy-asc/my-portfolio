@@ -4,20 +4,25 @@ import { MONGO_URI } from '../../config/config.service.js'
 let isConnected = false
 
 export const connectDB = async () => {
+    // If already connected or connecting, reuse existing connection
+    if (mongoose.connection.readyState === 1) {
+        isConnected = true
+        return mongoose.connection
+    }
+
     try {
         mongoose.set('strictQuery', false)
         const conn = await mongoose.connect(MONGO_URI, {
-            serverSelectionTimeoutMS: 10000,  // 10s — enough for Atlas
+            serverSelectionTimeoutMS: 10000,
             socketTimeoutMS: 45000,
             connectTimeoutMS: 10000,
         })
         isConnected = true
         console.log(`[MongoDB Atlas Connected]: ${conn.connection.host}/${conn.connection.name}`)
 
-        // Handle unexpected disconnects
         mongoose.connection.on('disconnected', () => {
             isConnected = false
-            console.warn('[MongoDB]: Disconnected from Atlas. Will reconnect automatically.')
+            console.warn('[MongoDB]: Disconnected from Atlas.')
         })
         mongoose.connection.on('reconnected', () => {
             isConnected = true
@@ -37,4 +42,4 @@ export const connectDB = async () => {
     }
 }
 
-export const getDBStatus = () => isConnected
+export const getDBStatus = () => isConnected || mongoose.connection.readyState === 1
