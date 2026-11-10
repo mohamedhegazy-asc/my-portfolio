@@ -8,3 +8,4 @@ ApplicationStructure2026/node_modules
 .env.development
 .env.test
 *.log
+
