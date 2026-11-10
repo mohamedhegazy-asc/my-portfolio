@@ -15,7 +15,6 @@ const articleSchema = new mongoose.Schema({
     tags: [{ type: String }]
 }, { timestamps: true })
 
-articleSchema.index({ slug: 1 }, { unique: true })
 articleSchema.index({ category: 1, createdAt: -1 })
 articleSchema.index({ published: 1, publishedAt: -1 })
 

@@ -32,9 +32,7 @@ export const defaultProfile = {
 }
 
 export const defaultProjects = [
-    {
-        _id: "proj_1",
-        title: "Sales & Churn Analytics Dashboard",
+    {        title: "Sales & Churn Analytics Dashboard",
         slug: "sales-churn-analytics",
         subtitle: "Interactive Power BI & Python analytics dashboard tracking retail performance, revenue metrics, and customer retention.",
         logoUrl: "DA",
@@ -51,9 +49,7 @@ export const defaultProjects = [
         order: 1,
         featured: true
     },
-    {
-        _id: "proj_2",
-        title: "Market Basket & Customer Segmentation",
+    {        title: "Market Basket & Customer Segmentation",
         slug: "customer-segmentation-rfm",
         subtitle: "RFM customer segmentation and transaction basket analysis conducted with Python, SQL, and Pandas.",
         logoUrl: "RFM",
@@ -70,9 +66,7 @@ export const defaultProjects = [
         order: 2,
         featured: true
     },
-    {
-        _id: "proj_3",
-        title: "AI Financial Anomaly Detector",
+    {        title: "AI Financial Anomaly Detector",
         slug: "ai-financial-anomaly",
         subtitle: "Machine learning & AI workflow identifying statistical anomalies and forecasting monthly business expenditures.",
         logoUrl: "AI",
@@ -89,9 +83,7 @@ export const defaultProjects = [
         order: 3,
         featured: true
     },
-    {
-        _id: "proj_4",
-        title: "Roamento Memory Archive",
+    {        title: "Roamento Memory Archive",
         slug: "roamento",
         subtitle: "Clean web application and personal archive designed with modern web principles and cloud data persistence.",
         logoUrl: "R",
@@ -108,9 +100,7 @@ export const defaultProjects = [
         order: 4,
         featured: true
     },
-    {
-        _id: "proj_5",
-        title: "Mach Sports Performance Analytics",
+    {        title: "Mach Sports Performance Analytics",
         slug: "mach-analytics",
         subtitle: "E-commerce data tracking system measuring conversion funnel efficiency and inventory velocity.",
         logoUrl: "M",
@@ -127,9 +117,7 @@ export const defaultProjects = [
         order: 5,
         featured: true
     },
-    {
-        _id: "proj_6",
-        title: "Pet Adapt Medical Health Tracker",
+    {        title: "Pet Adapt Medical Health Tracker",
         slug: "pet-adapt",
         subtitle: "Health records tracking and veterinary appointment scheduling app with descriptive health reporting.",
         logoUrl: "PA",
@@ -146,9 +134,7 @@ export const defaultProjects = [
         order: 6,
         featured: true
     },
-    {
-        _id: "proj_7",
-        title: "Byteline API Integrations",
+    {        title: "Byteline API Integrations",
         slug: "byteline",
         subtitle: "Automated webhook routing and data transformation pipeline connecting CRM and analytics platforms.",
         logoUrl: "B",
@@ -167,9 +153,7 @@ export const defaultProjects = [
 ]
 
 export const defaultArticles = [
-    {
-        _id: "art_1",
-        title: "The Rise of Vibe Coding: How AI Is Redefining Modern Development",
+    {        title: "The Rise of Vibe Coding: How AI Is Redefining Modern Development",
         slug: "rise-of-vibe-coding",
         category: "AI & Vibe Coding",
         excerpt: "Exploring how natural language prompting and intelligent agents enable rapid prototyping and data-driven application delivery without traditional boilerplate friction.",
@@ -188,9 +172,7 @@ By marrying core knowledge of database structures with AI acceleration, modern a
         views: 248,
         createdAt: new Date(Date.now() - 3600000 * 2) // 2 hours ago
     },
-    {
-        _id: "art_2",
-        title: "Mastering Exploratory Data Analysis (EDA) with Python & Pandas",
+    {        title: "Mastering Exploratory Data Analysis (EDA) with Python & Pandas",
         slug: "mastering-eda-python-pandas",
         category: "Data Analysis",
         excerpt: "A structured walkthrough on handling messy datasets, identifying statistical outliers, and uncovering core business distributions before modeling.",
@@ -210,9 +192,7 @@ Applying this discipline ensures that business leaders make decisions based on r
         views: 412,
         createdAt: new Date(Date.now() - 86400000 * 1 - 3600000 * 4) // Yesterday
     },
-    {
-        _id: "art_3",
-        title: "Bridging Business Information Systems (BIS) and Modern Analytics",
+    {        title: "Bridging Business Information Systems (BIS) and Modern Analytics",
         slug: "bridging-bis-and-modern-analytics",
         category: "Business Intelligence",
         excerpt: "How business process understanding, ERP systems, and financial accounting fundamentals empower analysts to build truly effective KPI reporting.",
@@ -229,16 +209,12 @@ Having an academic background in Business Information Systems (BIS) provides the
 ]
 
 export const defaultMessages = [
-    {
-        _id: "msg_1",
-        name: "Ahmed Hassan",
+    {        name: "Ahmed Hassan",
         email: "ahmed.hassan@example.com",
         message: "Hello Mohamed, we reviewed your data analytics portfolio and would love to discuss a business dashboard project for our retail branch.",
         createdAt: new Date(Date.now() - 86400000 * 2)
     },
-    {
-        _id: "msg_2",
-        name: "Sara Kamal",
+    {        name: "Sara Kamal",
         email: "sara.kamal@agency.com",
         message: "Great work on the customer segmentation model! Are you available for remote data consulting contracts?",
         createdAt: new Date(Date.now() - 86400000 * 4)
@@ -249,6 +225,10 @@ export const seedDB = async () => {
     if (!getDBStatus()) {
         return false
     }
+
+    // Helper: strip string _id fields so MongoDB generates proper ObjectIds
+    const stripId = (arr) => arr.map(({ _id, ...rest }) => rest)
+
     try {
         await Profile.deleteMany({})
         await Profile.create(defaultProfile)
@@ -256,14 +236,20 @@ export const seedDB = async () => {
 
         const countProjects = await Project.countDocuments()
         if (countProjects === 0) {
-            await Project.insertMany(defaultProjects)
+            await Project.insertMany(stripId(defaultProjects))
             console.log("[DB Seed]: Projects seeded successfully.")
         }
 
         const countArticles = await Article.countDocuments()
         if (countArticles === 0) {
-            await Article.insertMany(defaultArticles)
+            await Article.insertMany(stripId(defaultArticles))
             console.log("[DB Seed]: Articles seeded successfully.")
+        }
+
+        const countMessages = await Message.countDocuments()
+        if (countMessages === 0) {
+            await Message.insertMany(stripId(defaultMessages))
+            console.log("[DB Seed]: Sample messages seeded successfully.")
         }
 
         // Seed empty daily snapshots for the last 7 days if none exist
