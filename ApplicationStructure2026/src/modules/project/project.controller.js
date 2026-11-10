@@ -4,7 +4,8 @@ import {
     getProjectBySlugService,
     createProjectService,
     updateProjectService,
-    deleteProjectService
+    deleteProjectService,
+    incrementProjectClicksService
 } from './project.service.js'
 
 const router = Router()
@@ -34,11 +35,21 @@ router.get('/:slug', async (req, res, next) => {
     }
 })
 
+// POST /api/projects/:slug/click  — track project card click
+router.post('/:slug/click', async (req, res, next) => {
+    try {
+        await incrementProjectClicksService(req.params.slug)
+        return res.status(200).json({ success: true })
+    } catch (error) {
+        next(error)
+    }
+})
+
 // POST /api/projects (Admin)
 router.post('/', async (req, res, next) => {
     try {
         const project = await createProjectService(req.body)
-        return res.status(201).json({ success: true, message: "Project created successfully", data: project })
+        return res.status(201).json({ success: true, message: 'Project created successfully', data: project })
     } catch (error) {
         next(error)
     }
@@ -48,8 +59,8 @@ router.post('/', async (req, res, next) => {
 router.put('/:id', async (req, res, next) => {
     try {
         const project = await updateProjectService(req.params.id, req.body)
-        if (!project) return res.status(404).json({ success: false, message: "Project not found" })
-        return res.status(200).json({ success: true, message: "Project updated successfully", data: project })
+        if (!project) return res.status(404).json({ success: false, message: 'Project not found' })
+        return res.status(200).json({ success: true, message: 'Project updated successfully', data: project })
     } catch (error) {
         next(error)
     }
@@ -59,8 +70,8 @@ router.put('/:id', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
     try {
         const success = await deleteProjectService(req.params.id)
-        if (!success) return res.status(404).json({ success: false, message: "Project not found" })
-        return res.status(200).json({ success: true, message: "Project deleted successfully" })
+        if (!success) return res.status(404).json({ success: false, message: 'Project not found' })
+        return res.status(200).json({ success: true, message: 'Project deleted successfully' })
     } catch (error) {
         next(error)
     }

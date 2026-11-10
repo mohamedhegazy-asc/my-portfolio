@@ -1,4 +1,4 @@
-import { Profile, Project, Article, Message } from './model/index.js'
+import { Profile, Project, Article, Message, DailySnapshot } from './model/index.js'
 import { getDBStatus } from './connection.db.js'
 
 export const defaultProfile = {
@@ -265,6 +265,20 @@ export const seedDB = async () => {
             await Article.insertMany(defaultArticles)
             console.log("[DB Seed]: Articles seeded successfully.")
         }
+
+        // Seed empty daily snapshots for the last 7 days if none exist
+        const countSnapshots = await DailySnapshot.countDocuments()
+        if (countSnapshots === 0) {
+            const snapshots = []
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date()
+                d.setDate(d.getDate() - i)
+                snapshots.push({ date: d.toISOString().slice(0, 10), views: 0, uniqueVisitors: 0, projectClicks: 0, cvDownloads: 0 })
+            }
+            await DailySnapshot.insertMany(snapshots)
+            console.log("[DB Seed]: Daily snapshot baseline seeded.")
+        }
+
         return true
     } catch (err) {
         console.error("[DB Seed Error]:", err.message)

@@ -461,11 +461,11 @@ export const deleteArticle = async (id) => {
 }
 
 // Contact & Messages APIs
-export const submitContact = async ({ name, email, message }) => {
+export const submitContact = async ({ name, email, subject = '', message }) => {
   const res = await fetch(`${API_BASE}/contact`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, email, message })
+    body: JSON.stringify({ name, email, subject, message })
   })
   const json = await res.json()
   if (!res.ok) {
@@ -545,20 +545,61 @@ export const fetchAnalytics = async () => {
   }
 }
 
-export const trackEvent = async (event, id) => {
+export const trackEvent = async (event, options = {}) => {
+  const page = typeof options === 'string' ? options : (options.page || window.location.pathname)
+  const meta = typeof options === 'object' ? (options.meta || {}) : {}
   try {
     const res = await fetch(`${API_BASE}/analytics/track`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event, id })
+      body: JSON.stringify({ event, page, meta })
     })
     return await res.json()
   } catch (err) {
-    // Local fallback tracking
     if (event === 'page_view') fallbackAnalytics.totalPageViews += 1
     if (event === 'project_click') fallbackAnalytics.projectClicks += 1
     if (event === 'cv_download') fallbackAnalytics.cvDownloads += 1
     return { success: true }
+  }
+}
+
+// Track project card click + increment server counter
+export const trackProjectClick = async (slug) => {
+  trackEvent('project_click', { meta: { slug } })
+  try {
+    await fetch(`${API_BASE}/projects/${slug}/click`, { method: 'POST' })
+  } catch (_) { /* silent */ }
+}
+
+// Mark message as read/unread
+export const markMessageRead = async (id, isRead = true) => {
+  try {
+    const res = await fetch(`${API_BASE}/contact/messages/${id}/read`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isRead })
+    })
+    const json = await res.json()
+    return json.data
+  } catch (error) {
+    console.warn('API markMessageRead error:', error.message)
+    return null
+  }
+}
+
+// Star / unstar message
+export const starMessage = async (id, isStarred = true) => {
+  try {
+    const res = await fetch(`${API_BASE}/contact/messages/${id}/star`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isStarred })
+    })
+    const json = await res.json()
+    return json.data
+  } catch (error) {
+    console.warn('API starMessage error:', error.message)
+    return null
   }
 }
 

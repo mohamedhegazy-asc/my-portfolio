@@ -4,7 +4,7 @@ import { defaultMessages } from '../../DB/seed.js'
 
 let inMemoryMessages = [...defaultMessages]
 
-export const createMessageService = async ({ name, email, message }) => {
+export const createMessageService = async ({ name, email, subject = '', message, ip = '' }) => {
     if (!name || !email || !message) {
         const error = new Error('Please provide name, email, and message')
         error.cause = { status: 400 }
@@ -19,7 +19,7 @@ export const createMessageService = async ({ name, email, message }) => {
     }
 
     if (getDBStatus()) {
-        const newMessage = await Message.create({ name, email, message })
+        const newMessage = await Message.create({ name, email, subject, message, ip })
         return newMessage
     }
 
@@ -27,7 +27,11 @@ export const createMessageService = async ({ name, email, message }) => {
         _id: `msg_${Date.now()}`,
         name,
         email,
+        subject,
         message,
+        isRead: false,
+        isStarred: false,
+        ip,
         createdAt: new Date()
     }
     inMemoryMessages.unshift(mockMessage)
@@ -44,6 +48,26 @@ export const getMessagesService = async () => {
         }
     }
     return inMemoryMessages
+}
+
+export const markMessageReadService = async (id, isRead = true) => {
+    if (getDBStatus()) {
+        const updated = await Message.findByIdAndUpdate(id, { isRead }, { new: true })
+        return updated
+    }
+    const msg = inMemoryMessages.find(m => m._id === id)
+    if (msg) msg.isRead = isRead
+    return msg || null
+}
+
+export const starMessageService = async (id, isStarred = true) => {
+    if (getDBStatus()) {
+        const updated = await Message.findByIdAndUpdate(id, { isStarred }, { new: true })
+        return updated
+    }
+    const msg = inMemoryMessages.find(m => m._id === id)
+    if (msg) msg.isStarred = isStarred
+    return msg || null
 }
 
 export const deleteMessageService = async (id) => {

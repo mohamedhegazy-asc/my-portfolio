@@ -13,7 +13,11 @@ const projectSchema = new mongoose.Schema({
     liveUrl: { type: String, default: "#" },
     repoUrl: { type: String, default: "#" },
     order: { type: Number, default: 0 },
-    featured: { type: Boolean, default: false }
+    featured: { type: Boolean, default: false },
+    clicks: { type: Number, default: 0 },
+    description: { type: String, default: '' },
+    tags: [{ type: String }],
+    tech: [{ type: String }]
 }, { timestamps: true })
 
 export const Project = mongoose.models.Project || mongoose.model('Project', projectSchema)

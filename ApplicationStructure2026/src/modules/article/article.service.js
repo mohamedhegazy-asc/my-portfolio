@@ -8,14 +8,12 @@ export const getArticlesService = async (category) => {
     if (getDBStatus()) {
         try {
             const query = category && category !== 'All' ? { category } : {}
-            const articles = await Article.find(query).sort({ createdAt: -1 }).lean()
+            const articles = await Article.find(query).sort({ publishedAt: -1, createdAt: -1 }).lean()
             if (articles && articles.length > 0) return articles
         } catch (err) {
-            console.error("Error fetching articles from MongoDB:", err.message)
+            console.error('Error fetching articles from MongoDB:', err.message)
         }
     }
-    
-    // In-memory fallback
     if (category && category !== 'All') {
         return inMemoryArticles.filter(a => a.category.toLowerCase() === category.toLowerCase())
     }
@@ -32,10 +30,9 @@ export const getArticleBySlugService = async (slug) => {
             ).lean()
             if (article) return article
         } catch (err) {
-            console.error("Error fetching article by slug from MongoDB:", err.message)
+            console.error('Error fetching article by slug from MongoDB:', err.message)
         }
     }
-    
     const found = inMemoryArticles.find(a => a.slug === slug)
     if (found) found.views = (found.views || 0) + 1
     return found || null
@@ -43,15 +40,18 @@ export const getArticleBySlugService = async (slug) => {
 
 export const createArticleService = async (data) => {
     if (!data.title || !data.content) {
-        const error = new Error("Title and content are required")
+        const error = new Error('Title and content are required')
         error.cause = { status: 400 }
         throw error
     }
 
     const slug = data.slug || data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
 
+    // Set real publishedAt timestamp at the moment of creation if published
+    const publishedAt = data.published !== false ? new Date() : null
+
     if (getDBStatus()) {
-        const newArticle = await Article.create({ ...data, slug })
+        const newArticle = await Article.create({ ...data, slug, publishedAt })
         return newArticle
     }
 
@@ -60,17 +60,23 @@ export const createArticleService = async (data) => {
         ...data,
         slug,
         views: 0,
-        createdAt: new Date()
+        publishedAt,
+        createdAt: new Date(),
+        updatedAt: new Date()
     }
     inMemoryArticles.unshift(mockArticle)
     return mockArticle
 }
 
 export const updateArticleService = async (idOrSlug, data) => {
+    // If toggling to published and no publishedAt yet, set it now
+    const publishedAt = (data.published === true) ? new Date() : undefined
+    const updateData = publishedAt ? { ...data, publishedAt } : { ...data }
+
     if (getDBStatus()) {
         const updated = await Article.findOneAndUpdate(
             { $or: [{ _id: idOrSlug }, { slug: idOrSlug }] },
-            { $set: data },
+            { $set: updateData },
             { new: true }
         )
         return updated
@@ -78,7 +84,7 @@ export const updateArticleService = async (idOrSlug, data) => {
 
     const idx = inMemoryArticles.findIndex(a => a._id === idOrSlug || a.slug === idOrSlug)
     if (idx !== -1) {
-        inMemoryArticles[idx] = { ...inMemoryArticles[idx], ...data }
+        inMemoryArticles[idx] = { ...inMemoryArticles[idx], ...updateData, updatedAt: new Date() }
         return inMemoryArticles[idx]
     }
     return null
@@ -91,7 +97,6 @@ export const deleteArticleService = async (idOrSlug) => {
         })
         return !!deleted
     }
-
     const idx = inMemoryArticles.findIndex(a => a._id === idOrSlug || a.slug === idOrSlug)
     if (idx !== -1) {
         inMemoryArticles.splice(idx, 1)
@@ -99,4 +104,3 @@ export const deleteArticleService = async (idOrSlug) => {
     }
     return false
 }
-

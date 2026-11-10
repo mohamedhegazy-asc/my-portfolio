@@ -16,9 +16,12 @@ router.get('/', async (req, res, next) => {
 // POST /api/analytics/track
 router.post('/track', async (req, res, next) => {
     try {
-        const { event, id } = req.body
-        const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress
-        const result = await recordEventService(event, { ip, id })
+        const { event, page, meta } = req.body
+        const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim()
+        const userAgent = req.headers['user-agent'] || ''
+        const referrer = req.headers['referer'] || ''
+
+        const result = await recordEventService(event, { ip, page, userAgent, referrer, meta: meta || {} })
         return res.status(200).json({ success: true, data: result })
     } catch (error) {
         next(error)
@@ -26,4 +29,3 @@ router.post('/track', async (req, res, next) => {
 })
 
 export default router
-
