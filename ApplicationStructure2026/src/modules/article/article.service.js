@@ -1,8 +1,16 @@
+import mongoose from 'mongoose'
 import { Article } from '../../DB/model/index.js'
 import { getDBStatus } from '../../DB/connection.db.js'
 import { defaultArticles } from '../../DB/seed.js'
 
 let inMemoryArticles = [...defaultArticles]
+
+function buildFilter(idOrSlug) {
+    if (mongoose.Types.ObjectId.isValid(idOrSlug)) {
+        return { $or: [{ _id: idOrSlug }, { slug: idOrSlug }] }
+    }
+    return { slug: idOrSlug }
+}
 
 export const getArticlesService = async (category) => {
     if (getDBStatus()) {
@@ -46,8 +54,6 @@ export const createArticleService = async (data) => {
     }
 
     const slug = data.slug || data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
-
-    // Set real publishedAt timestamp at the moment of creation if published
     const publishedAt = data.published !== false ? new Date() : null
 
     if (getDBStatus()) {
@@ -69,13 +75,12 @@ export const createArticleService = async (data) => {
 }
 
 export const updateArticleService = async (idOrSlug, data) => {
-    // If toggling to published and no publishedAt yet, set it now
     const publishedAt = (data.published === true) ? new Date() : undefined
     const updateData = publishedAt ? { ...data, publishedAt } : { ...data }
 
     if (getDBStatus()) {
         const updated = await Article.findOneAndUpdate(
-            { $or: [{ _id: idOrSlug }, { slug: idOrSlug }] },
+            buildFilter(idOrSlug),
             { $set: updateData },
             { new: true }
         )
@@ -92,9 +97,7 @@ export const updateArticleService = async (idOrSlug, data) => {
 
 export const deleteArticleService = async (idOrSlug) => {
     if (getDBStatus()) {
-        const deleted = await Article.findOneAndDelete({
-            $or: [{ _id: idOrSlug }, { slug: idOrSlug }]
-        })
+        const deleted = await Article.findOneAndDelete(buildFilter(idOrSlug))
         return !!deleted
     }
     const idx = inMemoryArticles.findIndex(a => a._id === idOrSlug || a.slug === idOrSlug)

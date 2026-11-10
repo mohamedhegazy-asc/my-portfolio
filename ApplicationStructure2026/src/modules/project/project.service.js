@@ -1,8 +1,16 @@
+import mongoose from 'mongoose'
 import { Project } from '../../DB/model/index.js'
 import { getDBStatus } from '../../DB/connection.db.js'
 import { defaultProjects } from '../../DB/seed.js'
 
 let inMemoryProjects = [...defaultProjects]
+
+function buildFilter(idOrSlug) {
+    if (mongoose.Types.ObjectId.isValid(idOrSlug)) {
+        return { $or: [{ _id: idOrSlug }, { slug: idOrSlug }] }
+    }
+    return { slug: idOrSlug }
+}
 
 export const getProjectsService = async (category) => {
     if (getDBStatus()) {
@@ -73,7 +81,7 @@ export const createProjectService = async (data) => {
 export const updateProjectService = async (idOrSlug, data) => {
     if (getDBStatus()) {
         const updated = await Project.findOneAndUpdate(
-            { $or: [{ _id: idOrSlug }, { slug: idOrSlug }] },
+            buildFilter(idOrSlug),
             { $set: data },
             { new: true }
         )
@@ -89,9 +97,7 @@ export const updateProjectService = async (idOrSlug, data) => {
 
 export const deleteProjectService = async (idOrSlug) => {
     if (getDBStatus()) {
-        const deleted = await Project.findOneAndDelete({
-            $or: [{ _id: idOrSlug }, { slug: idOrSlug }]
-        })
+        const deleted = await Project.findOneAndDelete(buildFilter(idOrSlug))
         return !!deleted
     }
     const idx = inMemoryProjects.findIndex(p => p._id === idOrSlug || p.slug === idOrSlug)

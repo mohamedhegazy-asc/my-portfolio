@@ -10,7 +10,7 @@ const articleSchema = new mongoose.Schema({
     readTime: { type: String, default: "5 min read" },
     author: { type: String, default: "Mohamed Mahmoud Hegazy" },
     published: { type: Boolean, default: true },
-    publishedAt: { type: Date, default: null }, // set when published=true
+    publishedAt: { type: Date, default: null },
     views: { type: Number, default: 0 },
     tags: [{ type: String }]
 }, { timestamps: true })
@@ -18,13 +18,11 @@ const articleSchema = new mongoose.Schema({
 articleSchema.index({ category: 1, createdAt: -1 })
 articleSchema.index({ published: 1, publishedAt: -1 })
 
-// Auto-set publishedAt when article is published for the first time
-articleSchema.pre('save', function (next) {
+// Auto-set publishedAt when article is published
+articleSchema.pre('save', function () {
     if (this.published && !this.publishedAt) {
         this.publishedAt = new Date()
     }
-    next()
 })
 
 export const Article = mongoose.models.Article || mongoose.model('Article', articleSchema)
-
