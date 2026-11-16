@@ -4,7 +4,7 @@ import { getDBStatus } from '../../DB/connection.db.js'
 import { defaultProjects } from '../../DB/seed.js'
 import { slugify, ensureUniqueSlug } from '../../utils/slugify.js'
 
-let inMemoryProjects = [...defaultProjects]
+let inMemoryProjects = []
 
 function buildFilter(idOrSlug) {
     if (mongoose.Types.ObjectId.isValid(idOrSlug)) {
@@ -18,7 +18,7 @@ export const getProjectsService = async (category) => {
         try {
             const query = category && category !== 'All' ? { category } : {}
             const projects = await Project.find(query).sort({ order: 1, createdAt: -1 }).lean()
-            if (projects && projects.length > 0) return projects
+            return projects || []
         } catch (err) {
             console.error('Error fetching projects from MongoDB:', err.message)
         }

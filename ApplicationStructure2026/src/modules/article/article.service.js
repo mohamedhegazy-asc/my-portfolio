@@ -4,7 +4,7 @@ import { getDBStatus } from '../../DB/connection.db.js'
 import { defaultArticles } from '../../DB/seed.js'
 import { slugify, ensureUniqueSlug } from '../../utils/slugify.js'
 
-let inMemoryArticles = [...defaultArticles]
+let inMemoryArticles = []
 
 function buildFilter(idOrSlug) {
     if (mongoose.Types.ObjectId.isValid(idOrSlug)) {
@@ -18,7 +18,7 @@ export const getArticlesService = async (category) => {
         try {
             const query = category && category !== 'All' ? { category } : {}
             const articles = await Article.find(query).sort({ publishedAt: -1, createdAt: -1 }).lean()
-            if (articles && articles.length > 0) return articles
+            return articles || []
         } catch (err) {
             console.error('Error fetching articles from MongoDB:', err.message)
         }
