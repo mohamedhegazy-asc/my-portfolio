@@ -2,6 +2,7 @@ import mongoose from 'mongoose'
 import { Article } from '../../DB/model/index.js'
 import { getDBStatus } from '../../DB/connection.db.js'
 import { defaultArticles } from '../../DB/seed.js'
+import { slugify, ensureUniqueSlug } from '../../utils/slugify.js'
 
 let inMemoryArticles = [...defaultArticles]
 
@@ -47,24 +48,51 @@ export const getArticleBySlugService = async (slug) => {
 }
 
 export const createArticleService = async (data) => {
-    if (!data.title || !data.content) {
-        const error = new Error('Title and content are required')
+    if (!data.title || !data.title.trim()) {
+        const error = new Error('Article title is required')
         error.cause = { status: 400 }
         throw error
     }
 
-    const slug = data.slug || data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
+    if (!data.content || !data.content.trim()) {
+        const error = new Error('Article content is required')
+        error.cause = { status: 400 }
+        throw error
+    }
+
+    const baseSlug = slugify(data.slug || data.title)
     const publishedAt = data.published !== false ? new Date() : null
+    const excerpt = data.excerpt && data.excerpt.trim() 
+        ? data.excerpt.trim() 
+        : data.content.trim().slice(0, 150) + '...'
 
     if (getDBStatus()) {
-        const newArticle = await Article.create({ ...data, slug, publishedAt })
+        const slug = await ensureUniqueSlug(Article, baseSlug)
+        const cleanData = {
+            ...data,
+            title: data.title.trim(),
+            slug,
+            excerpt,
+            content: data.content.trim(),
+            category: data.category || 'Data Analysis',
+            coverImage: data.coverImage || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80',
+            readTime: data.readTime || '5 min read',
+            author: data.author || 'Mohamed Mahmoud Hegazy',
+            published: data.published !== false,
+            publishedAt,
+            views: data.views || 0
+        }
+        delete cleanData._id
+
+        const newArticle = await Article.create(cleanData)
         return newArticle
     }
 
     const mockArticle = {
         _id: `art_${Date.now()}`,
         ...data,
-        slug,
+        slug: baseSlug,
+        excerpt,
         views: 0,
         publishedAt,
         createdAt: new Date(),
@@ -75,21 +103,39 @@ export const createArticleService = async (data) => {
 }
 
 export const updateArticleService = async (idOrSlug, data) => {
-    const publishedAt = (data.published === true) ? new Date() : undefined
-    const updateData = publishedAt ? { ...data, publishedAt } : { ...data }
-
     if (getDBStatus()) {
-        const updated = await Article.findOneAndUpdate(
-            buildFilter(idOrSlug),
+        const filter = buildFilter(idOrSlug)
+        const existing = await Article.findOne(filter)
+        if (!existing) {
+            const error = new Error('Article not found')
+            error.cause = { status: 404 }
+            throw error
+        }
+
+        const updateData = { ...data }
+        delete updateData._id
+
+        if (data.slug && data.slug.trim()) {
+            updateData.slug = await ensureUniqueSlug(Article, slugify(data.slug), existing._id)
+        } else if (data.title && data.title.trim() && !existing.slug) {
+            updateData.slug = await ensureUniqueSlug(Article, slugify(data.title), existing._id)
+        }
+
+        if (data.published === true && !existing.publishedAt) {
+            updateData.publishedAt = new Date()
+        }
+
+        const updated = await Article.findByIdAndUpdate(
+            existing._id,
             { $set: updateData },
-            { new: true }
+            { new: true, runValidators: true }
         )
         return updated
     }
 
     const idx = inMemoryArticles.findIndex(a => a._id === idOrSlug || a.slug === idOrSlug)
     if (idx !== -1) {
-        inMemoryArticles[idx] = { ...inMemoryArticles[idx], ...updateData, updatedAt: new Date() }
+        inMemoryArticles[idx] = { ...inMemoryArticles[idx], ...data, updatedAt: new Date() }
         return inMemoryArticles[idx]
     }
     return null
@@ -97,7 +143,8 @@ export const updateArticleService = async (idOrSlug, data) => {
 
 export const deleteArticleService = async (idOrSlug) => {
     if (getDBStatus()) {
-        const deleted = await Article.findOneAndDelete(buildFilter(idOrSlug))
+        const filter = buildFilter(idOrSlug)
+        const deleted = await Article.findOneAndDelete(filter)
         return !!deleted
     }
     const idx = inMemoryArticles.findIndex(a => a._id === idOrSlug || a.slug === idOrSlug)

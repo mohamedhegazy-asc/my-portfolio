@@ -218,11 +218,11 @@ export default function AdminDashboard() {
         })
       }
       setProjectModalOpen(false)
-      loadDashboardData()
+      await loadDashboardData()
     } catch (err) {
       LightSwal.fire({
         icon: 'error',
-        title: isRTL ? 'فشل الحفظ' : 'Save Failed',
+        title: isRTL ? 'فشل الحفظ في قاعدة البيانات' : 'Save Failed',
         text: err.message
       })
     }
@@ -234,7 +234,7 @@ export default function AdminDashboard() {
       try {
         await deleteProject(id)
         showSuccessToast(isRTL ? `تم حذف المشروع "${title}"` : `Project "${title}" deleted successfully`)
-        loadDashboardData()
+        await loadDashboardData()
       } catch (err) {
         showErrorToast(err.message)
       }
@@ -313,11 +313,11 @@ export default function AdminDashboard() {
         })
       }
       setArticleModalOpen(false)
-      loadDashboardData()
+      await loadDashboardData()
     } catch (err) {
       LightSwal.fire({
         icon: 'error',
-        title: isRTL ? 'فشل النشر' : 'Publish Failed',
+        title: isRTL ? 'فشل النشر في قاعدة البيانات' : 'Publish Failed',
         text: err.message
       })
     }
@@ -329,7 +329,7 @@ export default function AdminDashboard() {
       try {
         await deleteArticle(id)
         showSuccessToast(isRTL ? `تم حذف المقال "${title}"` : `Article "${title}" removed`)
-        loadDashboardData()
+        await loadDashboardData()
       } catch (err) {
         showErrorToast(err.message)
       }
@@ -343,7 +343,7 @@ export default function AdminDashboard() {
       try {
         await deleteMessage(id)
         showSuccessToast(isRTL ? "تم حذف الرسالة" : "Message deleted")
-        loadDashboardData()
+        await loadDashboardData()
       } catch (err) {
         showErrorToast(err.message)
       }
@@ -395,7 +395,7 @@ export default function AdminDashboard() {
         timer: 2500,
         showConfirmButton: false
       })
-      loadDashboardData()
+      await loadDashboardData()
     } catch (err) {
       LightSwal.fire({
         icon: 'error',

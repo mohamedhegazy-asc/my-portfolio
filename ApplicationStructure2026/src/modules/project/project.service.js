@@ -2,6 +2,7 @@ import mongoose from 'mongoose'
 import { Project } from '../../DB/model/index.js'
 import { getDBStatus } from '../../DB/connection.db.js'
 import { defaultProjects } from '../../DB/seed.js'
+import { slugify, ensureUniqueSlug } from '../../utils/slugify.js'
 
 let inMemoryProjects = [...defaultProjects]
 
@@ -55,21 +56,38 @@ export const incrementProjectClicksService = async (slug) => {
 }
 
 export const createProjectService = async (data) => {
-    if (!data.title || !data.subtitle) {
-        const error = new Error('Title and subtitle are required')
+    if (!data.title || !data.title.trim()) {
+        const error = new Error('Project title is required')
         error.cause = { status: 400 }
         throw error
     }
-    const slug = data.slug || data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
+
+    const baseSlug = slugify(data.slug || data.title)
 
     if (getDBStatus()) {
-        const newProj = await Project.create({ ...data, slug })
+        const slug = await ensureUniqueSlug(Project, baseSlug)
+        const cleanData = {
+            ...data,
+            title: data.title.trim(),
+            slug,
+            subtitle: data.subtitle ? data.subtitle.trim() : 'Project Showcase',
+            category: data.category || 'Data Analysis',
+            type: data.type || 'BI Dashboard',
+            client: data.client || 'Client Studio',
+            thumbnail: data.thumbnail || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
+            liveUrl: data.liveUrl || '#',
+            repoUrl: data.repoUrl || '#'
+        }
+        delete cleanData._id
+
+        const newProj = await Project.create(cleanData)
         return newProj
     }
+
     const mockProj = {
         _id: `proj_${Date.now()}`,
         ...data,
-        slug,
+        slug: baseSlug,
         clicks: 0,
         order: inMemoryProjects.length + 1,
         createdAt: new Date()
@@ -80,13 +98,31 @@ export const createProjectService = async (data) => {
 
 export const updateProjectService = async (idOrSlug, data) => {
     if (getDBStatus()) {
-        const updated = await Project.findOneAndUpdate(
-            buildFilter(idOrSlug),
-            { $set: data },
-            { new: true }
+        const filter = buildFilter(idOrSlug)
+        const existing = await Project.findOne(filter)
+        if (!existing) {
+            const error = new Error('Project not found')
+            error.cause = { status: 404 }
+            throw error
+        }
+
+        const updateData = { ...data }
+        delete updateData._id
+
+        if (data.slug && data.slug.trim()) {
+            updateData.slug = await ensureUniqueSlug(Project, slugify(data.slug), existing._id)
+        } else if (data.title && data.title.trim() && !existing.slug) {
+            updateData.slug = await ensureUniqueSlug(Project, slugify(data.title), existing._id)
+        }
+
+        const updated = await Project.findByIdAndUpdate(
+            existing._id,
+            { $set: updateData },
+            { new: true, runValidators: true }
         )
         return updated
     }
+
     const idx = inMemoryProjects.findIndex(p => p._id === idOrSlug || p.slug === idOrSlug)
     if (idx !== -1) {
         inMemoryProjects[idx] = { ...inMemoryProjects[idx], ...data }
@@ -97,7 +133,8 @@ export const updateProjectService = async (idOrSlug, data) => {
 
 export const deleteProjectService = async (idOrSlug) => {
     if (getDBStatus()) {
-        const deleted = await Project.findOneAndDelete(buildFilter(idOrSlug))
+        const filter = buildFilter(idOrSlug)
+        const deleted = await Project.findOneAndDelete(filter)
         return !!deleted
     }
     const idx = inMemoryProjects.findIndex(p => p._id === idOrSlug || p.slug === idOrSlug)

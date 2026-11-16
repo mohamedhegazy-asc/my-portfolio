@@ -258,19 +258,15 @@ export const fetchProfile = async () => {
 }
 
 export const updateProfile = async (data) => {
-  try {
-    const res = await fetch(`${API_BASE}/profile`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    const json = await res.json()
-    if (!res.ok) throw new Error(json.message || 'Failed to update profile')
-    return json.data
-  } catch (error) {
-    console.warn('API updateProfile error, returning local merged data:', error.message)
-    return { ...fallbackProfile, ...data }
-  }
+  const res = await fetch(`${API_BASE}/profile`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  const json = await res.json()
+  if (!res.ok || !json.success) throw new Error(json.message || 'Failed to update profile')
+  Object.assign(fallbackProfile, json.data)
+  return json.data
 }
 
 // Projects APIs
@@ -282,6 +278,9 @@ export const fetchProjects = async (category) => {
     const res = await fetch(url)
     if (!res.ok) throw new Error('Failed to fetch projects')
     const json = await res.json()
+    if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+      return json.data
+    }
     return json.data || fallbackProjects
   } catch (error) {
     console.warn('API error (projects), using fallback data:', error.message)
@@ -305,63 +304,49 @@ export const fetchProjectBySlug = async (slug) => {
 }
 
 export const createProject = async (data) => {
-  try {
-    const res = await fetch(`${API_BASE}/projects`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    const json = await res.json()
-    if (!res.ok) throw new Error(json.message || 'Failed to create project')
-    return json.data
-  } catch (error) {
-    console.warn('API createProject error, creating mock project:', error.message)
-    const newProj = {
-      _id: `proj_${Date.now()}`,
-      ...data,
-      slug: data.slug || data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      createdAt: new Date().toISOString()
-    }
-    fallbackProjects.unshift(newProj)
-    return newProj
+  const res = await fetch(`${API_BASE}/projects`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  const json = await res.json()
+  if (!res.ok || !json.success) {
+    throw new Error(json.message || 'Failed to create project')
   }
+  if (json.data) {
+    fallbackProjects.unshift(json.data)
+  }
+  return json.data
 }
 
 export const updateProject = async (id, data) => {
-  try {
-    const res = await fetch(`${API_BASE}/projects/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    const json = await res.json()
-    if (!res.ok) throw new Error(json.message || 'Failed to update project')
-    return json.data
-  } catch (error) {
-    console.warn('API updateProject error:', error.message)
-    const idx = fallbackProjects.findIndex(p => p._id === id || p.slug === id)
-    if (idx !== -1) {
-      fallbackProjects[idx] = { ...fallbackProjects[idx], ...data }
-      return fallbackProjects[idx]
-    }
-    return data
+  const res = await fetch(`${API_BASE}/projects/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  const json = await res.json()
+  if (!res.ok || !json.success) {
+    throw new Error(json.message || 'Failed to update project')
   }
+  const idx = fallbackProjects.findIndex(p => p._id === id || p.slug === id)
+  if (idx !== -1 && json.data) {
+    fallbackProjects[idx] = json.data
+  }
+  return json.data
 }
 
 export const deleteProject = async (id) => {
-  try {
-    const res = await fetch(`${API_BASE}/projects/${id}`, {
-      method: 'DELETE'
-    })
-    const json = await res.json()
-    if (!res.ok) throw new Error(json.message || 'Failed to delete project')
-    return true
-  } catch (error) {
-    console.warn('API deleteProject error:', error.message)
-    const idx = fallbackProjects.findIndex(p => p._id === id || p.slug === id)
-    if (idx !== -1) fallbackProjects.splice(idx, 1)
-    return true
+  const res = await fetch(`${API_BASE}/projects/${id}`, {
+    method: 'DELETE'
+  })
+  const json = await res.json()
+  if (!res.ok || !json.success) {
+    throw new Error(json.message || 'Failed to delete project')
   }
+  const idx = fallbackProjects.findIndex(p => p._id === id || p.slug === id)
+  if (idx !== -1) fallbackProjects.splice(idx, 1)
+  return true
 }
 
 // Articles APIs
@@ -373,6 +358,9 @@ export const fetchArticles = async (category) => {
     const res = await fetch(url)
     if (!res.ok) throw new Error('Failed to fetch articles')
     const json = await res.json()
+    if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+      return json.data
+    }
     return json.data || fallbackArticles
   } catch (error) {
     console.warn('API error (articles), using fallback data:', error.message)
@@ -400,64 +388,49 @@ export const fetchArticleBySlug = async (slug) => {
 }
 
 export const createArticle = async (data) => {
-  try {
-    const res = await fetch(`${API_BASE}/articles`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    const json = await res.json()
-    if (!res.ok) throw new Error(json.message || 'Failed to create article')
-    return json.data
-  } catch (error) {
-    console.warn('API createArticle error, creating mock article:', error.message)
-    const newArt = {
-      _id: `art_${Date.now()}`,
-      ...data,
-      slug: data.slug || data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      views: 0,
-      createdAt: new Date().toISOString()
-    }
-    fallbackArticles.unshift(newArt)
-    return newArt
+  const res = await fetch(`${API_BASE}/articles`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  const json = await res.json()
+  if (!res.ok || !json.success) {
+    throw new Error(json.message || 'Failed to create article')
   }
+  if (json.data) {
+    fallbackArticles.unshift(json.data)
+  }
+  return json.data
 }
 
 export const updateArticle = async (id, data) => {
-  try {
-    const res = await fetch(`${API_BASE}/articles/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    const json = await res.json()
-    if (!res.ok) throw new Error(json.message || 'Failed to update article')
-    return json.data
-  } catch (error) {
-    console.warn('API updateArticle error:', error.message)
-    const idx = fallbackArticles.findIndex(a => a._id === id || a.slug === id)
-    if (idx !== -1) {
-      fallbackArticles[idx] = { ...fallbackArticles[idx], ...data }
-      return fallbackArticles[idx]
-    }
-    return data
+  const res = await fetch(`${API_BASE}/articles/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  const json = await res.json()
+  if (!res.ok || !json.success) {
+    throw new Error(json.message || 'Failed to update article')
   }
+  const idx = fallbackArticles.findIndex(a => a._id === id || a.slug === id)
+  if (idx !== -1 && json.data) {
+    fallbackArticles[idx] = json.data
+  }
+  return json.data
 }
 
 export const deleteArticle = async (id) => {
-  try {
-    const res = await fetch(`${API_BASE}/articles/${id}`, {
-      method: 'DELETE'
-    })
-    const json = await res.json()
-    if (!res.ok) throw new Error(json.message || 'Failed to delete article')
-    return true
-  } catch (error) {
-    console.warn('API deleteArticle error:', error.message)
-    const idx = fallbackArticles.findIndex(a => a._id === id || a.slug === id)
-    if (idx !== -1) fallbackArticles.splice(idx, 1)
-    return true
+  const res = await fetch(`${API_BASE}/articles/${id}`, {
+    method: 'DELETE'
+  })
+  const json = await res.json()
+  if (!res.ok || !json.success) {
+    throw new Error(json.message || 'Failed to delete article')
   }
+  const idx = fallbackArticles.findIndex(a => a._id === id || a.slug === id)
+  if (idx !== -1) fallbackArticles.splice(idx, 1)
+  return true
 }
 
 // Contact & Messages APIs
@@ -487,19 +460,14 @@ export const fetchMessages = async () => {
 }
 
 export const deleteMessage = async (id) => {
-  try {
-    const res = await fetch(`${API_BASE}/contact/messages/${id}`, {
-      method: 'DELETE'
-    })
-    const json = await res.json()
-    if (!res.ok) throw new Error(json.message || 'Failed to delete message')
-    return true
-  } catch (error) {
-    console.warn('API deleteMessage error:', error.message)
-    const idx = fallbackMessages.findIndex(m => m._id === id)
-    if (idx !== -1) fallbackMessages.splice(idx, 1)
-    return true
-  }
+  const res = await fetch(`${API_BASE}/contact/messages/${id}`, {
+    method: 'DELETE'
+  })
+  const json = await res.json()
+  if (!res.ok || !json.success) throw new Error(json.message || 'Failed to delete message')
+  const idx = fallbackMessages.findIndex(m => m._id === id)
+  if (idx !== -1) fallbackMessages.splice(idx, 1)
+  return true
 }
 
 // ─────────────────────────────────────────────────────────────
