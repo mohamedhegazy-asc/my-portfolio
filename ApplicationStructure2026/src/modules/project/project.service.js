@@ -13,20 +13,35 @@ function buildFilter(idOrSlug) {
     return { slug: idOrSlug }
 }
 
-export const getProjectsService = async (category) => {
+export const getProjectsService = async (category, options = {}) => {
+    const isAll = options.all === true
     if (getDBStatus()) {
         try {
-            const query = category && category !== 'All' ? { category } : {}
+            const query = {}
+            if (category && category !== 'All') {
+                query.category = category
+            }
+            if (!isAll) {
+                query.$and = [
+                    { published: { $ne: false } },
+                    { status: { $ne: 'private' } },
+                    { status: { $ne: 'draft' } }
+                ]
+            }
             const projects = await Project.find(query).sort({ order: 1, createdAt: -1 }).lean()
             return projects || []
         } catch (err) {
             console.error('Error fetching projects from MongoDB:', err.message)
         }
     }
-    if (category && category !== 'All') {
-        return inMemoryProjects.filter(p => p.category.toLowerCase() === category.toLowerCase())
+    let list = inMemoryProjects
+    if (!isAll) {
+        list = list.filter(p => p.published !== false && p.status !== 'private' && p.status !== 'draft')
     }
-    return inMemoryProjects
+    if (category && category !== 'All') {
+        return list.filter(p => p.category.toLowerCase() === category.toLowerCase())
+    }
+    return list
 }
 
 export const getProjectBySlugService = async (slug) => {

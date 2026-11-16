@@ -12,8 +12,8 @@ const router = Router()
 // GET /api/articles
 router.get('/', async (req, res, next) => {
     try {
-        const { category } = req.query
-        const articles = await getArticlesService(category)
+        const { category, all } = req.query
+        const articles = await getArticlesService(category, { all: all === 'true' })
         return res.status(200).json({ success: true, count: articles.length, data: articles })
     } catch (error) {
         next(error)

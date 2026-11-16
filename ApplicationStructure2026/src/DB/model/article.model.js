@@ -10,6 +10,7 @@ const articleSchema = new mongoose.Schema({
     readTime: { type: String, default: "5 min read" },
     author: { type: String, default: "Mohamed Mahmoud Hegazy" },
     published: { type: Boolean, default: true },
+    status: { type: String, enum: ['public', 'private', 'draft'], default: 'public' },
     publishedAt: { type: Date, default: null },
     views: { type: Number, default: 0 },
     tags: [{ type: String }]

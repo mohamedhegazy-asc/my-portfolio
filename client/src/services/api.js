@@ -270,24 +270,30 @@ export const updateProfile = async (data) => {
 }
 
 // Projects APIs
-export const fetchProjects = async (category) => {
+export const fetchProjects = async (category, options = {}) => {
   try {
-    const url = category && category !== 'All' 
-      ? `${API_BASE}/projects?category=${encodeURIComponent(category)}`
-      : `${API_BASE}/projects`
+    const params = new URLSearchParams()
+    if (category && category !== 'All') params.append('category', category)
+    if (options.all) params.append('all', 'true')
+
+    const url = params.toString() ? `${API_BASE}/projects?${params.toString()}` : `${API_BASE}/projects`
     const res = await fetch(url)
     if (!res.ok) throw new Error('Failed to fetch projects')
     const json = await res.json()
-    if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+    if (json.data && Array.isArray(json.data)) {
       return json.data
     }
-    return json.data || fallbackProjects
+    return json.data || []
   } catch (error) {
     console.warn('API error (projects), using fallback data:', error.message)
-    if (category && category !== 'All') {
-      return fallbackProjects.filter(p => p.category.toLowerCase() === category.toLowerCase())
+    let list = fallbackProjects
+    if (!options.all) {
+      list = list.filter(p => p.published !== false && p.status !== 'private' && p.status !== 'draft')
     }
-    return fallbackProjects
+    if (category && category !== 'All') {
+      return list.filter(p => p.category.toLowerCase() === category.toLowerCase())
+    }
+    return list
   }
 }
 
@@ -350,24 +356,30 @@ export const deleteProject = async (id) => {
 }
 
 // Articles APIs
-export const fetchArticles = async (category) => {
+export const fetchArticles = async (category, options = {}) => {
   try {
-    const url = category && category !== 'All' 
-      ? `${API_BASE}/articles?category=${encodeURIComponent(category)}`
-      : `${API_BASE}/articles`
+    const params = new URLSearchParams()
+    if (category && category !== 'All') params.append('category', category)
+    if (options.all) params.append('all', 'true')
+
+    const url = params.toString() ? `${API_BASE}/articles?${params.toString()}` : `${API_BASE}/articles`
     const res = await fetch(url)
     if (!res.ok) throw new Error('Failed to fetch articles')
     const json = await res.json()
-    if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+    if (json.data && Array.isArray(json.data)) {
       return json.data
     }
-    return json.data || fallbackArticles
+    return json.data || []
   } catch (error) {
     console.warn('API error (articles), using fallback data:', error.message)
-    if (category && category !== 'All') {
-      return fallbackArticles.filter(a => a.category.toLowerCase() === category.toLowerCase())
+    let list = fallbackArticles
+    if (!options.all) {
+      list = list.filter(a => a.published !== false && a.status !== 'private' && a.status !== 'draft')
     }
-    return fallbackArticles
+    if (category && category !== 'All') {
+      return list.filter(a => a.category.toLowerCase() === category.toLowerCase())
+    }
+    return list
   }
 }
 

@@ -13,8 +13,8 @@ const router = Router()
 // GET /api/projects
 router.get('/', async (req, res, next) => {
     try {
-        const { category } = req.query
-        const projects = await getProjectsService(category)
+        const { category, all } = req.query
+        const projects = await getProjectsService(category, { all: all === 'true' })
         return res.status(200).json({ success: true, count: projects.length, data: projects })
     } catch (error) {
         next(error)

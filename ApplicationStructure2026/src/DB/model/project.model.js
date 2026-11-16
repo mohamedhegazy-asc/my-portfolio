@@ -14,6 +14,8 @@ const projectSchema = new mongoose.Schema({
     repoUrl: { type: String, default: "#" },
     order: { type: Number, default: 0 },
     featured: { type: Boolean, default: false },
+    published: { type: Boolean, default: true },
+    status: { type: String, enum: ['public', 'private', 'draft'], default: 'public' },
     clicks: { type: Number, default: 0 },
     description: { type: String, default: '' },
     tags: [{ type: String }],

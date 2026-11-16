@@ -13,20 +13,35 @@ function buildFilter(idOrSlug) {
     return { slug: idOrSlug }
 }
 
-export const getArticlesService = async (category) => {
+export const getArticlesService = async (category, options = {}) => {
+    const isAll = options.all === true
     if (getDBStatus()) {
         try {
-            const query = category && category !== 'All' ? { category } : {}
+            const query = {}
+            if (category && category !== 'All') {
+                query.category = category
+            }
+            if (!isAll) {
+                query.$and = [
+                    { published: { $ne: false } },
+                    { status: { $ne: 'private' } },
+                    { status: { $ne: 'draft' } }
+                ]
+            }
             const articles = await Article.find(query).sort({ publishedAt: -1, createdAt: -1 }).lean()
             return articles || []
         } catch (err) {
             console.error('Error fetching articles from MongoDB:', err.message)
         }
     }
-    if (category && category !== 'All') {
-        return inMemoryArticles.filter(a => a.category.toLowerCase() === category.toLowerCase())
+    let list = inMemoryArticles
+    if (!isAll) {
+        list = list.filter(a => a.published !== false && a.status !== 'private' && a.status !== 'draft')
     }
-    return inMemoryArticles
+    if (category && category !== 'All') {
+        return list.filter(a => a.category.toLowerCase() === category.toLowerCase())
+    }
+    return list
 }
 
 export const getArticleBySlugService = async (slug) => {

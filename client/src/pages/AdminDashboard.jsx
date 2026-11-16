@@ -23,7 +23,8 @@ import {
   Save,
   Menu,
   AlertCircle,
-  Globe
+  Globe,
+  Lock
 } from 'lucide-react'
 import { 
   fetchProjects, 
@@ -61,12 +62,12 @@ export default function AdminDashboard() {
   const [analytics, setAnalytics] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // Modals state
-  const [projectModalOpen, setProjectModalOpen] = useState(false)
+  // Forms inline state
+  const [projectFormOpen, setProjectFormOpen] = useState(false)
   const [editingProject, setEditingProject] = useState(null)
   const [projectErrors, setProjectErrors] = useState({})
 
-  const [articleModalOpen, setArticleModalOpen] = useState(false)
+  const [articleFormOpen, setArticleFormOpen] = useState(false)
   const [editingArticle, setEditingArticle] = useState(null)
   const [articleErrors, setArticleErrors] = useState({})
 
@@ -80,7 +81,9 @@ export default function AdminDashboard() {
     client: 'Client Studio',
     thumbnail: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
     liveUrl: '',
-    repoUrl: ''
+    repoUrl: '',
+    status: 'public',
+    published: true
   })
 
   const [articleForm, setArticleForm] = useState({
@@ -91,6 +94,7 @@ export default function AdminDashboard() {
     content: '',
     coverImage: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80',
     readTime: '5 min read',
+    status: 'public',
     published: true
   })
 
@@ -110,8 +114,8 @@ export default function AdminDashboard() {
     setLoading(true)
     try {
       const [projList, artList, msgList, profData, analyticsData] = await Promise.all([
-        fetchProjects(),
-        fetchArticles(),
+        fetchProjects('All', { all: true }),
+        fetchArticles('All', { all: true }),
         fetchMessages(),
         fetchProfile(),
         fetchAnalytics()
@@ -160,14 +164,17 @@ export default function AdminDashboard() {
       client: 'Client Studio',
       thumbnail: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
       liveUrl: '',
-      repoUrl: ''
+      repoUrl: '',
+      status: 'public',
+      published: true
     })
-    setProjectModalOpen(true)
+    setProjectFormOpen(true)
   }
 
   const handleOpenEditProject = (proj) => {
     setEditingProject(proj)
     setProjectErrors({})
+    const isPrivate = proj.status === 'private' || proj.status === 'draft' || proj.published === false
     setProjectForm({
       title: proj.title || '',
       slug: proj.slug || '',
@@ -177,15 +184,25 @@ export default function AdminDashboard() {
       client: proj.client || 'Client Studio',
       thumbnail: proj.thumbnail || '',
       liveUrl: proj.liveUrl || '',
-      repoUrl: proj.repoUrl || ''
+      repoUrl: proj.repoUrl || '',
+      status: isPrivate ? 'private' : 'public',
+      published: !isPrivate
     })
-    setProjectModalOpen(true)
+    setProjectFormOpen(true)
   }
 
-  const handleSaveProject = async (e) => {
-    e.preventDefault()
+  const handleSaveProject = async (e, statusOverride) => {
+    if (e && e.preventDefault) e.preventDefault()
 
-    const validation = validateProjectForm(projectForm)
+    const chosenStatus = statusOverride || projectForm.status || 'public'
+    const isPrivate = chosenStatus === 'private' || chosenStatus === 'draft'
+    const finalForm = {
+      ...projectForm,
+      status: isPrivate ? 'private' : 'public',
+      published: !isPrivate
+    }
+
+    const validation = validateProjectForm(finalForm)
     if (!validation.isValid) {
       setProjectErrors(validation.errors)
       LightSwal.fire({
@@ -199,25 +216,34 @@ export default function AdminDashboard() {
 
     try {
       if (editingProject) {
-        await updateProject(editingProject._id || editingProject.slug, projectForm)
+        await updateProject(editingProject._id || editingProject.slug, finalForm)
         LightSwal.fire({
           icon: 'success',
-          title: isRTL ? 'تم تحديث المشروع!' : 'Project Updated!',
-          text: isRTL ? `تم حفظ تعديلات "${projectForm.title}" بنجاح.` : `"${projectForm.title}" has been updated on your live portfolio.`,
+          title: isPrivate 
+            ? (isRTL ? 'تم حفظ المشروع كمسودة خاصة!' : 'Saved as Private Draft!')
+            : (isRTL ? 'تم تحديث ونشر المشروع!' : 'Project Updated & Published!'),
+          text: isPrivate
+            ? (isRTL ? `المشروع "${finalForm.title}" محفوظ كمسودة داخل لوحة التحكم فقط.` : `"${finalForm.title}" is saved as private draft.`)
+            : (isRTL ? `تم حفظ ونشر تعديلات "${finalForm.title}" بنجاح ليظهر للعامة.` : `"${finalForm.title}" has been updated on your live portfolio.`),
           timer: 2000,
           showConfirmButton: false
         })
       } else {
-        await createProject(projectForm)
+        await createProject(finalForm)
         LightSwal.fire({
           icon: 'success',
-          title: isRTL ? 'تم نشر المشروع!' : 'Project Published!',
-          text: isRTL ? `"${projectForm.title}" معروض الآن لجميع زوار موقعك.` : `"${projectForm.title}" is now visible to all visitors.`,
+          title: isPrivate 
+            ? (isRTL ? 'تم حفظ المشروع كمسودة خاصة!' : 'Saved as Private Draft!')
+            : (isRTL ? 'تم نشر المشروع للعامة!' : 'Project Published!'),
+          text: isPrivate
+            ? (isRTL ? `المشروع "${finalForm.title}" محفوظ في لوحة التحكم فقط ولن يظهر للزوار.` : `"${finalForm.title}" is saved as private draft.`)
+            : (isRTL ? `"${finalForm.title}" معروض الآن لجميع زوار موقعك.` : `"${finalForm.title}" is now visible to all visitors.`),
           timer: 2000,
           showConfirmButton: false
         })
       }
-      setProjectModalOpen(false)
+      setProjectFormOpen(false)
+      setEditingProject(null)
       await loadDashboardData()
     } catch (err) {
       LightSwal.fire({
@@ -253,14 +279,16 @@ export default function AdminDashboard() {
       content: '',
       coverImage: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80',
       readTime: isRTL ? '5 دقائق قراءة' : '5 min read',
+      status: 'public',
       published: true
     })
-    setArticleModalOpen(true)
+    setArticleFormOpen(true)
   }
 
   const handleOpenEditArticle = (art) => {
     setEditingArticle(art)
     setArticleErrors({})
+    const isPrivate = art.status === 'private' || art.status === 'draft' || art.published === false
     setArticleForm({
       title: art.title || '',
       slug: art.slug || '',
@@ -269,15 +297,24 @@ export default function AdminDashboard() {
       content: art.content || '',
       coverImage: art.coverImage || '',
       readTime: art.readTime || (isRTL ? '5 دقائق قراءة' : '5 min read'),
-      published: art.published !== false
+      status: isPrivate ? 'private' : 'public',
+      published: !isPrivate
     })
-    setArticleModalOpen(true)
+    setArticleFormOpen(true)
   }
 
-  const handleSaveArticle = async (e) => {
-    e.preventDefault()
+  const handleSaveArticle = async (e, statusOverride) => {
+    if (e && e.preventDefault) e.preventDefault()
 
-    const validation = validateArticleForm(articleForm)
+    const chosenStatus = statusOverride || articleForm.status || 'public'
+    const isPrivate = chosenStatus === 'private' || chosenStatus === 'draft'
+    const finalForm = {
+      ...articleForm,
+      status: isPrivate ? 'private' : 'public',
+      published: !isPrivate
+    }
+
+    const validation = validateArticleForm(finalForm)
     if (!validation.isValid) {
       setArticleErrors(validation.errors)
       LightSwal.fire({
@@ -291,28 +328,37 @@ export default function AdminDashboard() {
 
     try {
       if (editingArticle) {
-        await updateArticle(editingArticle._id || editingArticle.slug, articleForm)
+        await updateArticle(editingArticle._id || editingArticle.slug, finalForm)
         LightSwal.fire({
           icon: 'success',
-          title: isRTL ? 'تم تحديث المقال!' : 'Article Updated!',
-          text: isRTL ? `تم حفظ تعديلات "${articleForm.title}".` : `"${articleForm.title}" changes saved.`,
+          title: isPrivate
+            ? (isRTL ? 'تم حفظ المقال كمسودة خاصة!' : 'Saved as Private Draft!')
+            : (isRTL ? 'تم تحديث ونشر المقال!' : 'Article Updated & Published!'),
+          text: isPrivate
+            ? (isRTL ? `المقال "${finalForm.title}" محفوظ الآن كمسودة داخل لوحة التحكم فقط.` : `"${finalForm.title}" is saved as private draft.`)
+            : (isRTL ? `تم حفظ وتحديث "${finalForm.title}".` : `"${finalForm.title}" changes saved.`),
           timer: 2000,
           showConfirmButton: false
         })
       } else {
         await createArticle({
-          ...articleForm,
+          ...finalForm,
           createdAt: new Date().toISOString()
         })
         LightSwal.fire({
           icon: 'success',
-          title: isRTL ? 'تم نشر المقال!' : 'Article Published!',
-          text: isRTL ? `"${articleForm.title}" منشور الآن في مدونتك.` : `"${articleForm.title}" is now published on your blog.`,
+          title: isPrivate
+            ? (isRTL ? 'تم حفظ المقال كمسودة خاصة!' : 'Saved as Private Draft!')
+            : (isRTL ? 'تم نشر المقال للعامة!' : 'Article Published!'),
+          text: isPrivate
+            ? (isRTL ? `المقال "${finalForm.title}" محفوظ داخل لوحة التحكم فقط.` : `"${finalForm.title}" is saved as private draft.`)
+            : (isRTL ? `"${finalForm.title}" منشور الآن في مدونتك للجميع.` : `"${finalForm.title}" is now published on your blog.`),
           timer: 2000,
           showConfirmButton: false
         })
       }
-      setArticleModalOpen(false)
+      setArticleFormOpen(false)
+      setEditingArticle(null)
       await loadDashboardData()
     } catch (err) {
       LightSwal.fire({
@@ -921,18 +967,265 @@ export default function AdminDashboard() {
                     {isRTL ? 'جميع مشاريع البورتفوليو' : 'All Portfolio Projects'}
                   </h3>
                   <p className="text-xs text-gray-500">
-                    {isRTL ? 'إدارة دراسات الحالة وروابط العرض الحي والتصنيفات.' : 'Manage case studies, live links, and categories.'}
+                    {isRTL ? 'إدارة دراسات الحالة، الحفظ كمسودة خاصة، والنشر للعامة.' : 'Manage case studies, save as private draft, or publish live.'}
                   </p>
                 </div>
 
                 <button
-                  onClick={handleOpenAddProject}
+                  onClick={() => {
+                    if (projectFormOpen && !editingProject) {
+                      setProjectFormOpen(false)
+                    } else {
+                      handleOpenAddProject()
+                    }
+                  }}
                   className="bg-[#222936] hover:bg-[#374159] text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
                 >
                   <Plus className="w-4 h-4 text-[#B9D895]" />
-                  <span>{isRTL ? 'إضافة مشروع جديد' : 'Upload New Project'}</span>
+                  <span>{projectFormOpen && !editingProject ? (isRTL ? 'إغلاق النموذج' : 'Close Form') : (isRTL ? 'إضافة مشروع جديد' : 'Upload New Project')}</span>
                 </button>
               </div>
+
+              {/* INLINE PROJECT FORM (Part of screen, no popup) */}
+              <AnimatePresence>
+                {projectFormOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    className="bg-[#F8FAFC] rounded-2xl p-6 border-2 border-[#1E232F]/15 shadow-sm space-y-5"
+                  >
+                    <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-[#1E232F] text-[#E0F6C4] flex items-center justify-center font-bold">
+                          <Plus className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-base font-bold text-[#1E232F]">
+                            {editingProject 
+                              ? (isRTL ? 'تعديل بيانات المشروع' : 'Edit Project Details') 
+                              : (isRTL ? 'إضافة مشروع جديد إلى البورتفوليو' : 'Add New Portfolio Project')}
+                          </h4>
+                          <p className="text-[11px] text-gray-500">
+                            {isRTL ? 'يمكنك الحفظ كمسودة خاصة للأدمن فقط، أو النشر للعامة ليظهر لجميع الزوار.' : 'Save as private draft or publish live for all visitors.'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button 
+                        type="button"
+                        onClick={() => { setProjectFormOpen(false); setEditingProject(null); }}
+                        className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors cursor-pointer"
+                        title={isRTL ? 'إلغاء وإغلاق' : 'Cancel & Close'}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={(e) => handleSaveProject(e)} className="space-y-4 text-xs">
+                      {/* Status / Visibility Selector */}
+                      <div className="p-3 bg-white rounded-xl border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <span className="font-bold text-gray-800 block text-xs">
+                            {isRTL ? 'حالة الظهور والخصوصية' : 'Visibility & Privacy'}
+                          </span>
+                          <span className="text-[11px] text-gray-400">
+                            {projectForm.status === 'private' 
+                              ? (isRTL ? 'خاص: يظهر في لوحة التحكم فقط ولا يظهر للزوار' : 'Private: visible only in admin dashboard')
+                              : (isRTL ? 'عام: منشور ومعروض لكل زوار الموقع الخارجي' : 'Public: published live to everyone')}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setProjectForm({ ...projectForm, status: 'public', published: true })}
+                            className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 text-xs transition-all cursor-pointer ${
+                              projectForm.status !== 'private'
+                                ? 'bg-emerald-600 text-white shadow-xs'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            <Globe className="w-3.5 h-3.5" />
+                            <span>{isRTL ? 'عام (منشور للجميع)' : 'Public (Live)'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setProjectForm({ ...projectForm, status: 'private', published: false })}
+                            className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 text-xs transition-all cursor-pointer ${
+                              projectForm.status === 'private'
+                                ? 'bg-amber-600 text-white shadow-xs'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            <Lock className="w-3.5 h-3.5" />
+                            <span>{isRTL ? 'خاص (مسودة للأدمن)' : 'Private (Draft)'}</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Form fields */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block font-semibold mb-1">
+                            {isRTL ? 'عنوان المشروع' : 'Project Title'} <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            dir="auto"
+                            placeholder={isRTL ? "مثال: لوحة تحليلات مبيعات التجزئة" : "e.g. Sales KPI Analytics"}
+                            value={projectForm.title}
+                            onChange={(e) => setProjectForm({ ...projectForm, title: e.target.value })}
+                            className={`w-full px-3 py-2 bg-white border rounded-lg ${projectErrors.title ? 'border-rose-500' : 'border-gray-200'}`}
+                          />
+                          {projectErrors.title && (
+                            <p className="mt-1 text-rose-500">{projectErrors.title}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block font-semibold mb-1">
+                            {isRTL ? 'الوصف المختصر' : 'Subtitle / Summary'} <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            dir="auto"
+                            placeholder={isRTL ? "وصف موجز للقيمة التحليلية للمشروع" : "Brief description of analytical value"}
+                            value={projectForm.subtitle}
+                            onChange={(e) => setProjectForm({ ...projectForm, subtitle: e.target.value })}
+                            className={`w-full px-3 py-2 bg-white border rounded-lg ${projectErrors.subtitle ? 'border-rose-500' : 'border-gray-200'}`}
+                          />
+                          {projectErrors.subtitle && (
+                            <p className="mt-1 text-rose-500">{projectErrors.subtitle}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block font-semibold mb-1">{isRTL ? 'الفئة' : 'Category'}</label>
+                          <select
+                            value={projectForm.category}
+                            onChange={(e) => setProjectForm({ ...projectForm, category: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white"
+                          >
+                            <option value="Data Analysis">{isRTL ? 'تحليل البيانات' : 'Data Analysis'}</option>
+                            <option value="AI">{isRTL ? 'الذكاء الاصطناعي' : 'AI'}</option>
+                            <option value="Web App">{isRTL ? 'تطبيقات الويب' : 'Web App'}</option>
+                            <option value="E-commerce">{isRTL ? 'التجارة الإلكترونية' : 'E-commerce'}</option>
+                            <option value="Mobile App">{isRTL ? 'تطبيقات الموبايل' : 'Mobile App'}</option>
+                            <option value="Website">{isRTL ? 'موقع إلكتروني' : 'Website'}</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block font-semibold mb-1">{isRTL ? 'النوع' : 'Type'}</label>
+                          <input
+                            type="text"
+                            dir="auto"
+                            placeholder={isRTL ? "مثال: لوحة Power BI" : "e.g. Power BI Dashboard"}
+                            value={projectForm.type}
+                            onChange={(e) => setProjectForm({ ...projectForm, type: e.target.value })}
+                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-semibold mb-1">{isRTL ? 'اسم العميل / الجهة' : 'Client Name'}</label>
+                          <input
+                            type="text"
+                            dir="auto"
+                            placeholder={isRTL ? "مثال: شركة مصفوفة التجزئة" : "e.g. Retail Matrix"}
+                            value={projectForm.client}
+                            onChange={(e) => setProjectForm({ ...projectForm, client: e.target.value })}
+                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold mb-1">
+                          {isRTL ? 'رابط الصورة المصغرة' : 'Thumbnail Image URL'} <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="url"
+                          required
+                          dir="ltr"
+                          value={projectForm.thumbnail}
+                          onChange={(e) => setProjectForm({ ...projectForm, thumbnail: e.target.value })}
+                          className={`w-full px-3 py-2 bg-white border rounded-lg ${projectErrors.thumbnail ? 'border-rose-500' : 'border-gray-200'}`}
+                        />
+                        {projectErrors.thumbnail && (
+                          <p className="mt-1 text-rose-500">{projectErrors.thumbnail}</p>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block font-semibold mb-1">{isRTL ? 'رابط المعاينة المباشرة (اختياري)' : 'Live URL (optional)'}</label>
+                          <input
+                            type="text"
+                            dir="ltr"
+                            placeholder="https://..."
+                            value={projectForm.liveUrl}
+                            onChange={(e) => setProjectForm({ ...projectForm, liveUrl: e.target.value })}
+                            className={`w-full px-3 py-2 bg-white border rounded-lg ${projectErrors.liveUrl ? 'border-rose-500' : 'border-gray-200'}`}
+                          />
+                          {projectErrors.liveUrl && (
+                            <p className="mt-1 text-rose-500">{projectErrors.liveUrl}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block font-semibold mb-1">{isRTL ? 'رابط مستودع GitHub (اختياري)' : 'GitHub Repo URL (optional)'}</label>
+                          <input
+                            type="text"
+                            dir="ltr"
+                            placeholder="https://github.com/..."
+                            value={projectForm.repoUrl}
+                            onChange={(e) => setProjectForm({ ...projectForm, repoUrl: e.target.value })}
+                            className={`w-full px-3 py-2 bg-white border rounded-lg ${projectErrors.repoUrl ? 'border-rose-500' : 'border-gray-200'}`}
+                          />
+                          {projectErrors.repoUrl && (
+                            <p className="mt-1 text-rose-500">{projectErrors.repoUrl}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="pt-3 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200">
+                        <button
+                          type="button"
+                          onClick={() => { setProjectFormOpen(false); setEditingProject(null); }}
+                          className="px-4 py-2 border border-gray-300 rounded-xl text-gray-600 hover:bg-white cursor-pointer font-medium"
+                        >
+                          {isRTL ? 'إلغاء' : 'Cancel'}
+                        </button>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => handleSaveProject(e, 'private')}
+                            className="px-4 py-2 bg-amber-50 border border-amber-300 text-amber-800 rounded-xl font-bold hover:bg-amber-100 flex items-center gap-1.5 cursor-pointer transition-colors"
+                          >
+                            <Lock className="w-3.5 h-3.5" />
+                            <span>{isRTL ? 'حفظ كمسودة (خاص)' : 'Save as Draft (Private)'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => handleSaveProject(e, 'public')}
+                            className="px-5 py-2 bg-[#222936] text-[#E0F6C4] rounded-xl font-bold hover:bg-[#374159] flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
+                          >
+                            <Globe className="w-3.5 h-3.5" />
+                            <span>{isRTL ? 'نشر المشروع (عام)' : 'Publish Project (Public)'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Projects Table */}
               <div className="overflow-x-auto">
@@ -942,6 +1235,7 @@ export default function AdminDashboard() {
                       <th className="py-3 px-4">{isRTL ? 'المشروع' : 'Project'}</th>
                       <th className="py-3 px-4">{isRTL ? 'الفئة' : 'Category'}</th>
                       <th className="py-3 px-4">{isRTL ? 'العميل' : 'Client'}</th>
+                      <th className="py-3 px-4">{isRTL ? 'الحالة' : 'Status'}</th>
                       <th className="py-3 px-4">{isRTL ? 'الروابط' : 'Live / Repo'}</th>
                       <th className="py-3 px-4 text-end">{isRTL ? 'الإجراءات' : 'Actions'}</th>
                     </tr>
@@ -966,6 +1260,19 @@ export default function AdminDashboard() {
                           </span>
                         </td>
                         <td className="py-4 px-4 text-gray-600 font-medium" dir="auto">{proj.client}</td>
+                        <td className="py-4 px-4">
+                          {proj.status === 'private' || proj.status === 'draft' || proj.published === false ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              <Lock className="w-3 h-3" />
+                              <span>{isRTL ? 'خاص (مسودة)' : 'Private (Draft)'}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <Globe className="w-3 h-3" />
+                              <span>{isRTL ? 'عام (منشور)' : 'Public (Live)'}</span>
+                            </span>
+                          )}
+                        </td>
                         <td className="py-4 px-4">
                           <div className="flex items-center gap-2">
                             {proj.liveUrl && proj.liveUrl !== '#' && (
@@ -1018,18 +1325,241 @@ export default function AdminDashboard() {
                     {isRTL ? 'المقالات وتدوينات المدونة' : 'Articles & Blog Posts'}
                   </h3>
                   <p className="text-xs text-gray-500">
-                    {isRTL ? 'نشر مقالات في تحليل البيانات والذكاء الاصطناعي وVibe Coding.' : 'Publish thought leadership on Data Analysis, AI, and Vibe Coding.'}
+                    {isRTL ? 'نشر مقالات في تحليل البيانات والذكاء الاصطناعي، أو الحفظ كمسودة.' : 'Publish thought leadership, or save as private draft.'}
                   </p>
                 </div>
 
                 <button
-                  onClick={handleOpenAddArticle}
+                  onClick={() => {
+                    if (articleFormOpen && !editingArticle) {
+                      setArticleFormOpen(false)
+                    } else {
+                      handleOpenAddArticle()
+                    }
+                  }}
                   className="bg-[#222936] hover:bg-[#374159] text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
                 >
                   <Plus className="w-4 h-4 text-[#B9D895]" />
-                  <span>{isRTL ? 'كتابة مقال جديد' : 'Write New Article'}</span>
+                  <span>{articleFormOpen && !editingArticle ? (isRTL ? 'إغلاق النموذج' : 'Close Form') : (isRTL ? 'كتابة مقال جديد' : 'Write New Article')}</span>
                 </button>
               </div>
+
+              {/* INLINE ARTICLE FORM (Part of screen, no popup) */}
+              <AnimatePresence>
+                {articleFormOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    className="bg-[#F8FAFC] rounded-2xl p-6 border-2 border-[#1E232F]/15 shadow-sm space-y-5"
+                  >
+                    <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-[#1E232F] text-[#E0F6C4] flex items-center justify-center font-bold">
+                          <Plus className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-base font-bold text-[#1E232F]">
+                            {editingArticle 
+                              ? (isRTL ? 'تعديل بيانات المقال' : 'Edit Blog Article') 
+                              : (isRTL ? 'كتابة ونشر مقال جديد في المدونة' : 'Write & Publish New Article')}
+                          </h4>
+                          <p className="text-[11px] text-gray-500">
+                            {isRTL ? 'يمكنك حفظ المقال كمسودة خاصة للأدمن فقط، أو نشره ليظهر للجميع.' : 'Save as private draft or publish live to your blog.'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button 
+                        type="button"
+                        onClick={() => { setArticleFormOpen(false); setEditingArticle(null); }}
+                        className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors cursor-pointer"
+                        title={isRTL ? 'إلغاء وإغلاق' : 'Cancel & Close'}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={(e) => handleSaveArticle(e)} className="space-y-4 text-xs">
+                      {/* Status / Visibility Selector */}
+                      <div className="p-3 bg-white rounded-xl border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <span className="font-bold text-gray-800 block text-xs">
+                            {isRTL ? 'حالة المقال والخصوصية' : 'Article Status & Privacy'}
+                          </span>
+                          <span className="text-[11px] text-gray-400">
+                            {articleForm.status === 'private' 
+                              ? (isRTL ? 'خاص: مسودة داخل لوحة التحكم فقط ولا تظهر لزوار المدونة' : 'Private: draft in admin only, hidden from readers')
+                              : (isRTL ? 'عام: منشور ومعروض في المدونة لجميع الزوار' : 'Public: live and published on your blog')}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setArticleForm({ ...articleForm, status: 'public', published: true })}
+                            className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 text-xs transition-all cursor-pointer ${
+                              articleForm.status !== 'private'
+                                ? 'bg-emerald-600 text-white shadow-xs'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            <Globe className="w-3.5 h-3.5" />
+                            <span>{isRTL ? 'عام (منشور للجميع)' : 'Public (Live)'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setArticleForm({ ...articleForm, status: 'private', published: false })}
+                            className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 text-xs transition-all cursor-pointer ${
+                              articleForm.status === 'private'
+                                ? 'bg-amber-600 text-white shadow-xs'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            <Lock className="w-3.5 h-3.5" />
+                            <span>{isRTL ? 'خاص (مسودة للأدمن)' : 'Private (Draft)'}</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold mb-1">
+                          {isRTL ? 'عنوان المقال' : 'Article Title'} <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          dir="auto"
+                          placeholder={isRTL ? "مثال: كيف تستفيد من Vibe Coding في معالجة البيانات باستخدام Pandas" : "e.g. How to use Vibe Coding with Pandas"}
+                          value={articleForm.title}
+                          onChange={(e) => setArticleForm({ ...articleForm, title: e.target.value })}
+                          className={`w-full px-3 py-2 bg-white border rounded-lg ${articleErrors.title ? 'border-rose-500' : 'border-gray-200'}`}
+                        />
+                        {articleErrors.title && (
+                          <p className="mt-1 text-rose-500">{articleErrors.title}</p>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block font-semibold mb-1">{isRTL ? 'الفئة' : 'Category'}</label>
+                          <select
+                            value={articleForm.category}
+                            onChange={(e) => setArticleForm({ ...articleForm, category: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white"
+                          >
+                            <option value="Data Analysis">{isRTL ? 'تحليل البيانات' : 'Data Analysis'}</option>
+                            <option value="AI & Vibe Coding">{isRTL ? 'الذكاء الاصطناعي وVibe Coding' : 'AI & Vibe Coding'}</option>
+                            <option value="Business Intelligence">{isRTL ? 'ذكاء الأعمال (BI)' : 'Business Intelligence'}</option>
+                            <option value="Web Development">{isRTL ? 'تطوير الويب' : 'Web Development'}</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block font-semibold mb-1">{isRTL ? 'وقت القراءة التقريبي' : 'Estimated Read Time'}</label>
+                          <input
+                            type="text"
+                            dir="auto"
+                            placeholder={isRTL ? "مثال: 5 دقائق قراءة" : "e.g. 5 min read"}
+                            value={articleForm.readTime}
+                            onChange={(e) => setArticleForm({ ...articleForm, readTime: e.target.value })}
+                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold mb-1">
+                          {isRTL ? 'المقتطف / الملخص التمهيدي' : 'Excerpt / Brief Summary'} <span className="text-rose-500">*</span>
+                        </label>
+                        <textarea
+                          rows={2}
+                          required
+                          dir="auto"
+                          placeholder={isRTL ? "مقدمة مشوقة وموجزة تظهر في بطاقات المعاينة" : "Short engaging hook that appears in previews"}
+                          value={articleForm.excerpt}
+                          onChange={(e) => setArticleForm({ ...articleForm, excerpt: e.target.value })}
+                          className={`w-full px-3 py-2 bg-white border rounded-lg resize-none ${articleErrors.excerpt ? 'border-rose-500' : 'border-gray-200'}`}
+                        />
+                        {articleErrors.excerpt && (
+                          <p className="mt-1 text-rose-500">{articleErrors.excerpt}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold mb-1">
+                          {isRTL ? 'رابط صورة الغلاف' : 'Cover Image URL'} <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="url"
+                          required
+                          dir="ltr"
+                          value={articleForm.coverImage}
+                          onChange={(e) => setArticleForm({ ...articleForm, coverImage: e.target.value })}
+                          className={`w-full px-3 py-2 bg-white border rounded-lg ${articleErrors.coverImage ? 'border-rose-500' : 'border-gray-200'}`}
+                        />
+                        {articleErrors.coverImage && (
+                          <p className="mt-1 text-rose-500">{articleErrors.coverImage}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block font-semibold">
+                            {isRTL ? 'نص المقال / المحتوى الكامل' : 'Article Body / Full Content'} <span className="text-rose-500">*</span>
+                          </label>
+                          <span className="text-[10px] text-gray-400">
+                            {isRTL ? 'يدعم الكتابة بالعربية والإنجليزية تلقائياً' : 'Supports auto text direction'}
+                          </span>
+                        </div>
+                        <textarea
+                          rows={7}
+                          required
+                          dir="auto"
+                          placeholder={isRTL ? "اكتب محتوى مقالك هنا، يمكنك كتابة فقرات أو نقاط باللغة العربية أو الإنجليزية بكل راحة..." : "Write your article in markdown or plain text..."}
+                          value={articleForm.content}
+                          onChange={(e) => setArticleForm({ ...articleForm, content: e.target.value })}
+                          className={`w-full px-3 py-2 bg-white border rounded-lg text-sm leading-relaxed resize-y ${articleErrors.content ? 'border-rose-500' : 'border-gray-200'}`}
+                        />
+                        {articleErrors.content && (
+                          <p className="mt-1 text-rose-500">{articleErrors.content}</p>
+                        )}
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="pt-3 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200">
+                        <button
+                          type="button"
+                          onClick={() => { setArticleFormOpen(false); setEditingArticle(null); }}
+                          className="px-4 py-2 border border-gray-300 rounded-xl text-gray-600 hover:bg-white cursor-pointer font-medium"
+                        >
+                          {isRTL ? 'إلغاء' : 'Cancel'}
+                        </button>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => handleSaveArticle(e, 'private')}
+                            className="px-4 py-2 bg-amber-50 border border-amber-300 text-amber-800 rounded-xl font-bold hover:bg-amber-100 flex items-center gap-1.5 cursor-pointer transition-colors"
+                          >
+                            <Lock className="w-3.5 h-3.5" />
+                            <span>{isRTL ? 'حفظ كمسودة (خاص)' : 'Save as Draft (Private)'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => handleSaveArticle(e, 'public')}
+                            className="px-5 py-2 bg-[#222936] text-[#E0F6C4] rounded-xl font-bold hover:bg-[#374159] flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
+                          >
+                            <Globe className="w-3.5 h-3.5" />
+                            <span>{isRTL ? 'نشر المقال (عام)' : 'Publish Article (Public)'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {articles.map((art) => (
@@ -1045,10 +1575,23 @@ export default function AdminDashboard() {
                           className="w-full h-full object-cover"
                         />
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#E0F6C4] text-[#222936]">
-                          {art.category}
-                        </span>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#E0F6C4] text-[#222936]">
+                            {art.category}
+                          </span>
+                          {art.status === 'private' || art.status === 'draft' || art.published === false ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              <Lock className="w-2.5 h-2.5" />
+                              <span>{isRTL ? 'مسودة خاصة' : 'Private Draft'}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <Globe className="w-2.5 h-2.5" />
+                              <span>{isRTL ? 'عام للجميع' : 'Public Live'}</span>
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-3 text-[11px] text-gray-400">
                           <span className="flex items-center gap-1 font-medium text-gray-600">
                             <Calendar className="w-3 h-3 text-[#1E232F]" />
@@ -1312,335 +1855,6 @@ export default function AdminDashboard() {
 
         </main>
       </div>
-
-      {/* PROJECT MODAL (Create / Edit) with Validation & Dir Auto */}
-      <AnimatePresence>
-        {projectModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setProjectModalOpen(false)}
-              className="fixed inset-0 bg-black/40 backdrop-blur-xs"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-xl bg-white rounded-2xl p-6 shadow-2xl border border-gray-200 z-10 max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex items-center justify-between border-b pb-3 mb-4">
-                <h3 className="text-lg font-bold text-[#1E232F]">
-                  {editingProject 
-                    ? (isRTL ? 'تعديل المشروع' : 'Edit Project') 
-                    : (isRTL ? 'إضافة مشروع جديد' : 'Upload New Project')}
-                </h3>
-                <button onClick={() => setProjectModalOpen(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveProject} className="space-y-4 text-xs">
-                <div>
-                  <label className="block font-semibold mb-1">
-                    {isRTL ? 'عنوان المشروع' : 'Project Title'} <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    dir="auto"
-                    placeholder={isRTL ? "مثال: لوحة تحليلات مبيعات التجزئة" : "e.g. Sales KPI Analytics"}
-                    value={projectForm.title}
-                    onChange={(e) => setProjectForm({ ...projectForm, title: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-lg ${projectErrors.title ? 'border-rose-500' : 'border-gray-200'}`}
-                  />
-                  {projectErrors.title && (
-                    <p className="mt-1 text-rose-500">{projectErrors.title}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block font-semibold mb-1">
-                    {isRTL ? 'الوصف المختصر' : 'Subtitle / Summary'} <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    dir="auto"
-                    placeholder={isRTL ? "وصف موجز للقيمة التحليلية للمشروع" : "Brief description of analytical value"}
-                    value={projectForm.subtitle}
-                    onChange={(e) => setProjectForm({ ...projectForm, subtitle: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-lg ${projectErrors.subtitle ? 'border-rose-500' : 'border-gray-200'}`}
-                  />
-                  {projectErrors.subtitle && (
-                    <p className="mt-1 text-rose-500">{projectErrors.subtitle}</p>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold mb-1">{isRTL ? 'الفئة' : 'Category'}</label>
-                    <select
-                      value={projectForm.category}
-                      onChange={(e) => setProjectForm({ ...projectForm, category: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white"
-                    >
-                      <option value="Data Analysis">{isRTL ? 'تحليل البيانات' : 'Data Analysis'}</option>
-                      <option value="AI">{isRTL ? 'الذكاء الاصطناعي' : 'AI'}</option>
-                      <option value="Web App">{isRTL ? 'تطبيقات الويب' : 'Web App'}</option>
-                      <option value="E-commerce">{isRTL ? 'التجارة الإلكترونية' : 'E-commerce'}</option>
-                      <option value="Mobile App">{isRTL ? 'تطبيقات الموبايل' : 'Mobile App'}</option>
-                      <option value="Website">{isRTL ? 'موقع إلكتروني' : 'Website'}</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1">{isRTL ? 'النوع' : 'Type'}</label>
-                    <input
-                      type="text"
-                      dir="auto"
-                      placeholder={isRTL ? "مثال: لوحة Power BI" : "e.g. Power BI Dashboard"}
-                      value={projectForm.type}
-                      onChange={(e) => setProjectForm({ ...projectForm, type: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-semibold mb-1">{isRTL ? 'اسم العميل / الجهة' : 'Client Name'}</label>
-                  <input
-                    type="text"
-                    dir="auto"
-                    placeholder={isRTL ? "مثال: شركة مصفوفة التجزئة" : "e.g. Retail Matrix"}
-                    value={projectForm.client}
-                    onChange={(e) => setProjectForm({ ...projectForm, client: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold mb-1">
-                    {isRTL ? 'رابط الصورة المصغرة' : 'Thumbnail Image URL'} <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="url"
-                    required
-                    dir="ltr"
-                    value={projectForm.thumbnail}
-                    onChange={(e) => setProjectForm({ ...projectForm, thumbnail: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-lg ${projectErrors.thumbnail ? 'border-rose-500' : 'border-gray-200'}`}
-                  />
-                  {projectErrors.thumbnail && (
-                    <p className="mt-1 text-rose-500">{projectErrors.thumbnail}</p>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold mb-1">{isRTL ? 'رابط المعاينة المباشرة (اختياري)' : 'Live URL (optional)'}</label>
-                    <input
-                      type="text"
-                      dir="ltr"
-                      placeholder="https://..."
-                      value={projectForm.liveUrl}
-                      onChange={(e) => setProjectForm({ ...projectForm, liveUrl: e.target.value })}
-                      className={`w-full px-3 py-2 border rounded-lg ${projectErrors.liveUrl ? 'border-rose-500' : 'border-gray-200'}`}
-                    />
-                    {projectErrors.liveUrl && (
-                      <p className="mt-1 text-rose-500">{projectErrors.liveUrl}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1">{isRTL ? 'رابط مستودع GitHub (اختياري)' : 'GitHub Repo URL (optional)'}</label>
-                    <input
-                      type="text"
-                      dir="ltr"
-                      placeholder="https://github.com/..."
-                      value={projectForm.repoUrl}
-                      onChange={(e) => setProjectForm({ ...projectForm, repoUrl: e.target.value })}
-                      className={`w-full px-3 py-2 border rounded-lg ${projectErrors.repoUrl ? 'border-rose-500' : 'border-gray-200'}`}
-                    />
-                    {projectErrors.repoUrl && (
-                      <p className="mt-1 text-rose-500">{projectErrors.repoUrl}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="pt-3 flex justify-end gap-2 border-t">
-                  <button
-                    type="button"
-                    onClick={() => setProjectModalOpen(false)}
-                    className="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 cursor-pointer"
-                  >
-                    {isRTL ? 'إلغاء' : 'Cancel'}
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 bg-[#222936] text-[#E0F6C4] rounded-lg font-bold hover:bg-[#374159] cursor-pointer"
-                  >
-                    {isRTL ? 'حفظ المشروع' : 'Save Project'}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* ARTICLE MODAL (Create / Edit) with Validation & Proper Dir Auto for Content */}
-      <AnimatePresence>
-        {articleModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setArticleModalOpen(false)}
-              className="fixed inset-0 bg-black/40 backdrop-blur-xs"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-2xl bg-white rounded-2xl p-6 shadow-2xl border border-gray-200 z-10 max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex items-center justify-between border-b pb-3 mb-4">
-                <h3 className="text-lg font-bold text-[#1E232F]">
-                  {editingArticle 
-                    ? (isRTL ? 'تعديل المقال' : 'Edit Blog Article') 
-                    : (isRTL ? 'نشر مقال جديد في المدونة' : 'Publish New Blog Article')}
-                </h3>
-                <button onClick={() => setArticleModalOpen(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveArticle} className="space-y-4 text-xs">
-                <div>
-                  <label className="block font-semibold mb-1">
-                    {isRTL ? 'عنوان المقال' : 'Article Title'} <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    dir="auto"
-                    placeholder={isRTL ? "مثال: كيف تستفيد من Vibe Coding في معالجة البيانات باستخدام Pandas" : "e.g. How to use Vibe Coding with Pandas"}
-                    value={articleForm.title}
-                    onChange={(e) => setArticleForm({ ...articleForm, title: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-lg ${articleErrors.title ? 'border-rose-500' : 'border-gray-200'}`}
-                  />
-                  {articleErrors.title && (
-                    <p className="mt-1 text-rose-500">{articleErrors.title}</p>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold mb-1">{isRTL ? 'الفئة' : 'Category'}</label>
-                    <select
-                      value={articleForm.category}
-                      onChange={(e) => setArticleForm({ ...articleForm, category: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white"
-                    >
-                      <option value="Data Analysis">{isRTL ? 'تحليل البيانات' : 'Data Analysis'}</option>
-                      <option value="AI & Vibe Coding">{isRTL ? 'الذكاء الاصطناعي وVibe Coding' : 'AI & Vibe Coding'}</option>
-                      <option value="Business Intelligence">{isRTL ? 'ذكاء الأعمال (BI)' : 'Business Intelligence'}</option>
-                      <option value="Web Development">{isRTL ? 'تطوير الويب' : 'Web Development'}</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1">{isRTL ? 'وقت القراءة التقريبي' : 'Estimated Read Time'}</label>
-                    <input
-                      type="text"
-                      dir="auto"
-                      placeholder={isRTL ? "مثال: 5 دقائق قراءة" : "e.g. 5 min read"}
-                      value={articleForm.readTime}
-                      onChange={(e) => setArticleForm({ ...articleForm, readTime: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-semibold mb-1">
-                    {isRTL ? 'المقتطف / الملخص التمهيدي' : 'Excerpt / Brief Summary'} <span className="text-rose-500">*</span>
-                  </label>
-                  <textarea
-                    rows={2}
-                    required
-                    dir="auto"
-                    placeholder={isRTL ? "مقدمة مشوقة وموجزة تظهر في بطاقات المعاينة" : "Short engaging hook that appears in previews"}
-                    value={articleForm.excerpt}
-                    onChange={(e) => setArticleForm({ ...articleForm, excerpt: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-lg resize-none ${articleErrors.excerpt ? 'border-rose-500' : 'border-gray-200'}`}
-                  />
-                  {articleErrors.excerpt && (
-                    <p className="mt-1 text-rose-500">{articleErrors.excerpt}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block font-semibold mb-1">
-                    {isRTL ? 'رابط صورة الغلاف' : 'Cover Image URL'} <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="url"
-                    required
-                    dir="ltr"
-                    value={articleForm.coverImage}
-                    onChange={(e) => setArticleForm({ ...articleForm, coverImage: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-lg ${articleErrors.coverImage ? 'border-rose-500' : 'border-gray-200'}`}
-                  />
-                  {articleErrors.coverImage && (
-                    <p className="mt-1 text-rose-500">{articleErrors.coverImage}</p>
-                  )}
-                </div>
-
-                {/* Article Body Content with dir="auto" for natural typing in Arabic and English */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block font-semibold">
-                      {isRTL ? 'نص المقال / المحتوى الكامل' : 'Article Body / Full Content'} <span className="text-rose-500">*</span>
-                    </label>
-                    <span className="text-[10px] text-gray-400">
-                      {isRTL ? 'يدعم الكتابة بالعربية والإنجليزية تلقائياً' : 'Supports auto text direction'}
-                    </span>
-                  </div>
-                  <textarea
-                    rows={8}
-                    required
-                    dir="auto"
-                    placeholder={isRTL ? "اكتب محتوى مقالك هنا، يمكنك كتابة فقرات أو نقاط باللغة العربية أو الإنجليزية بكل راحة..." : "Write your article in markdown or plain text..."}
-                    value={articleForm.content}
-                    onChange={(e) => setArticleForm({ ...articleForm, content: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-lg text-sm leading-relaxed resize-y ${articleErrors.content ? 'border-rose-500' : 'border-gray-200'}`}
-                  />
-                  {articleErrors.content && (
-                    <p className="mt-1 text-rose-500">{articleErrors.content}</p>
-                  )}
-                </div>
-
-                <div className="pt-3 flex justify-end gap-2 border-t">
-                  <button
-                    type="button"
-                    onClick={() => setArticleModalOpen(false)}
-                    className="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 cursor-pointer"
-                  >
-                    {isRTL ? 'إلغاء' : 'Cancel'}
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 bg-[#222936] text-[#E0F6C4] rounded-lg font-bold hover:bg-[#374159] cursor-pointer"
-                  >
-                    {isRTL ? 'نشر المقال' : 'Publish Article'}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
     </div>
   )
