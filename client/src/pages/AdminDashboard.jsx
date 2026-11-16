@@ -485,7 +485,7 @@ export default function AdminDashboard() {
           <div className="h-18 px-5 border-b border-[#F0F2F5] flex items-center justify-between">
             <div className="flex items-center gap-3 overflow-hidden">
               <div className="w-9 h-9 rounded-xl bg-[#222936] text-[#B9D895] font-black text-sm flex items-center justify-center shrink-0 shadow-sm">
-                mmh
+                <Sparkles className="w-4 h-4 text-[#B9D895]" />
               </div>
               {(!sidebarCollapsed || mobileSidebarOpen) && (
                 <div className="flex flex-col">

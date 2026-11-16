@@ -57,10 +57,10 @@ export default function Navbar({ profile, onOpenContact }) {
       {/* Left: Wordmark Logo */}
       <Link 
         to="/" 
-        className="text-2xl font-black tracking-tight text-white hover:text-[#B9D895] transition-colors lowercase"
+        className="text-xl font-black tracking-tight text-white hover:text-[#B9D895] transition-colors"
         aria-label="Home"
       >
-        {profile?.initials || 'mmh'}
+        {isRTL ? 'محمد حجازي' : (profile?.shortName ? `${profile.shortName} Hegazy` : 'Mohamed Hegazy')}
       </Link>
 
       {/* Center: Navigation Links */}

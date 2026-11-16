@@ -42,9 +42,9 @@ export default function WorksSection({ profile, projects }) {
       <div className="w-full border-b border-[#222936]/15 px-6 md:px-12 py-4 flex items-center justify-between">
         <Link 
           to="/" 
-          className="text-xl font-bold tracking-tight text-[#222936] lowercase"
+          className="text-lg font-bold tracking-tight text-[#222936] hover:opacity-80 transition-opacity"
         >
-          {profile?.initials || 'mmh'}
+          {isRTL ? 'محمد حجازي' : (profile?.shortName ? `${profile.shortName} Hegazy` : 'Mohamed Hegazy')}
         </Link>
 
         <a

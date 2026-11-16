@@ -3,7 +3,7 @@ const API_BASE = '/api'
 export const fallbackProfile = {
   name: "Mohamed Mahmoud Hegazy",
   shortName: "Mohamed",
-  initials: "mmh",
+  initials: "",
   title: "Data Analyst & AI Enthusiast",
   country: "Egypt, Gharbia - Zifta",
   birthDate: "2003-01-16",

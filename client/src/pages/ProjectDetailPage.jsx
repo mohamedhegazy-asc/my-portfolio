@@ -93,9 +93,12 @@ export default function ProjectDetailPage({ profile }) {
             <span>{t(lang, 'projectDetail.backBtn')}</span>
           </Link>
           <span className="text-xs text-[#222936]/30">|</span>
-          <span className="text-xl font-bold tracking-tight text-[#222936] lowercase">
-            {profile?.initials || 'mmh'}
-          </span>
+          <Link 
+            to="/" 
+            className="text-lg font-bold tracking-tight text-[#222936] hover:opacity-80 transition-opacity"
+          >
+            {isRTL ? 'محمد حجازي' : (profile?.shortName ? `${profile.shortName} Hegazy` : 'Mohamed Hegazy')}
+          </Link>
         </div>
 
         <a

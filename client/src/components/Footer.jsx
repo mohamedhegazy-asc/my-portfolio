@@ -18,11 +18,8 @@ export default function Footer({ profile }) {
         
         {/* Brand */}
         <div className="flex items-center gap-3">
-          <span className="text-2xl font-black text-[#B9D895] lowercase">
-            {profile?.initials || 'mmh'}
-          </span>
-          <span className="text-sm text-[#E0F6C4]/60">
-            • {displayName}
+          <span className="text-xl font-bold text-[#B9D895]">
+            {displayName}
           </span>
         </div>
 

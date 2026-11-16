@@ -8,7 +8,7 @@ const toolSchema = new mongoose.Schema({
 const profileSchema = new mongoose.Schema({
     name: { type: String, required: true, default: "Mohamed Mahmoud Hegazy" },
     shortName: { type: String, required: true, default: "Mohamed" },
-    initials: { type: String, required: true, default: "mmh" },
+    initials: { type: String, default: "" },
     title: { type: String, required: true, default: "Data Analyst & AI Enthusiast" },
     country: { type: String, required: true, default: "Egypt, Gharbia - Zifta" },
     birthDate: { type: String, default: "2003-01-16" },
