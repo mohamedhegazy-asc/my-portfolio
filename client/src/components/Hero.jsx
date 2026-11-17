@@ -4,6 +4,7 @@ import { BarChart3, Database, Cpu } from 'lucide-react'
 import HeroPortrait from './HeroPortrait'
 import { useLang } from '../i18n/LanguageContext'
 import { t } from '../i18n/translations'
+import WaveBackground from './WaveBackground'
 
 export default function Hero({ profile }) {
   const { lang, isRTL } = useLang()
@@ -28,6 +29,9 @@ export default function Hero({ profile }) {
       id="home" 
       className="relative w-full bg-[#222936] rounded-t-[24px] pt-8 pb-20 px-6 md:px-12 lg:px-20 overflow-hidden border-t border-white/10"
     >
+      {/* Wave animation background — sits behind everything, fades out at bottom */}
+      <WaveBackground color="181,217,156" lines={9} amp={22} speed={0.8} />
+
       {/* Background radial glows:
           - soft --slate glow (top center-right)
           - soft --sage glow (top right corner) at 25-35% opacity
