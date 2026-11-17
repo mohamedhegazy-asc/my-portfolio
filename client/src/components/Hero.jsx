@@ -16,17 +16,17 @@ export default function Hero({ profile }) {
     }
   }
 
-  const initialLetter = isRTL 
-    ? 'م' 
+  const initialLetter = isRTL
+    ? 'م'
     : (profile?.name ? profile.name.trim().charAt(0).toUpperCase() : 'M')
 
-  const displayName = isRTL ? 'محمد' : (profile?.shortName || "MOHAMED")
-  const displayTitle = isRTL ? 'محلل بيانات' : (profile?.title || "Data Analyst")
+  const displayName = isRTL ? 'محمد' : (profile?.shortName || "M_Hegazy")
+  const displayTitle = isRTL ? 'خريج نظم معلومات الأعمال ' : (profile?.title || "Business Information Systems Graduate")
   const displayCountry = isRTL ? 'مصر، الغربية - زفتى' : (profile?.country || "Egypt, Gharbia - Zifta")
 
   return (
-    <section 
-      id="home" 
+    <section
+      id="home"
       className="relative w-full bg-[#222936] rounded-t-[24px] pt-8 pb-20 px-6 md:px-12 lg:px-20 overflow-hidden border-t border-white/10"
     >
       {/* Wave animation background — sits behind everything, fades out at bottom */}
@@ -36,13 +36,13 @@ export default function Hero({ profile }) {
           - soft --slate glow (top center-right)
           - soft --sage glow (top right corner) at 25-35% opacity
       */}
-      <div 
+      <div
         className="absolute top-0 right-1/4 w-[500px] h-[500px] rounded-full pointer-events-none opacity-30 blur-3xl"
         style={{
           background: 'radial-gradient(circle, #374159 0%, transparent 70%)'
         }}
       />
-      <div 
+      <div
         className="absolute -top-20 -right-20 w-[450px] h-[450px] rounded-full pointer-events-none opacity-30 blur-3xl"
         style={{
           background: 'radial-gradient(circle, #B9D895 0%, transparent 65%)'
@@ -50,13 +50,13 @@ export default function Hero({ profile }) {
       />
 
       <div className="relative max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
-        
+
         {/* Text Column: Stacked Text + 3 Dashed Cards (span 7) */}
         <div className="lg:col-span-7 flex flex-col justify-center space-y-8 z-20">
-          
+
           {/* Stacked Text Block (Tight line height, NO EMOJIS) */}
           <div className="space-y-1">
-            <motion.p 
+            <motion.p
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
@@ -65,7 +65,7 @@ export default function Hero({ profile }) {
               {t(lang, 'hero.greeting')}
             </motion.p>
 
-            <motion.h1 
+            <motion.h1
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
@@ -74,7 +74,7 @@ export default function Hero({ profile }) {
               {displayName}
             </motion.h1>
 
-            <motion.h2 
+            <motion.h2
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
@@ -83,7 +83,7 @@ export default function Hero({ profile }) {
               {displayTitle}
             </motion.h2>
 
-            <motion.p 
+            <motion.p
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
@@ -94,7 +94,7 @@ export default function Hero({ profile }) {
           </div>
 
           {/* Three Dashed Cards below the text (Clean SVG icons, NO EMOJIS) */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 25 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.4 }}

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<!--
+==================================================================
+TASK FOR THE AGENT: "Offset-layer photo card" for the Home hero
+==================================================================
+Replace the current rounded photo box in the hero section (right side
+in LTR / left side in RTL) with the component below.
+
+Files:
+  - photo-card.html : component markup + CSS (copy the <style> and the
+    .photo-card block into the site's own CSS/components, don't keep
+    this file as a separate page).
+  - photo.jpg       : the photo. Put it in the site's assets folder and
+    update the <img src>. If the owner supplies a higher-resolution
+    original, use that instead.
+
+Requirements:
+  1. Keep the site's existing dark background and light-green accent.
+     The colors below are variables: map --pc-accent and --pc-ink to
+     the site's real accent and dark colors.
+  2. The photo is rotated slightly (2.5deg) over a green outline frame
+     that is shifted down and sideways behind it. The name tag sits on
+     the photo's bottom corner.
+  3. Must work in both English (LTR) and Arabic (RTL): the frame shift
+     and tag position flip automatically using [dir="rtl"].
+     The tag text stays LTR. Make the tag text match the site language
+     if the site already has i18n (Arabic: محمد حجازي).
+  4. Responsive: scales down on mobile, no horizontal scroll (the frame
+     and tag overflow slightly, so give the parent enough padding).
+  5. Do not change the hero text, buttons or navbar.
+==================================================================
+-->
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photo card - offset layer</title>
+<style>
+:root{
+  --pc-accent:#c3e08f;   /* site's light green */
+  --pc-ink:#1f2733;      /* site's dark background */
+}
+
+.photo-card{
+  --pc-w:clamp(220px,28vw,300px);
+  --pc-shift:18px;
+  position:relative;
+  width:var(--pc-w);
+  aspect-ratio:260 / 330;
+  margin:28px;           /* room for the offset frame and the tag */
+}
+[dir="rtl"] .photo-card{--pc-shift:-18px}
+
+/* the outline frame behind the photo */
+.photo-card::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  border:2px solid var(--pc-accent);
+  border-radius:18px;
+  transform:translate(var(--pc-shift),18px);
+}
+
+.photo-card img{
+  position:relative;
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  object-position:center top;
+  border-radius:18px;
+  transform:rotate(2.5deg);
+}
+
+.photo-card .tag{
+  position:absolute;
+  bottom:-14px;
+  inset-inline-end:-12px;
+  z-index:2;
+  background:var(--pc-accent);
+  color:var(--pc-ink);
+  font-weight:700;
+  font-size:.85rem;
+  padding:8px 14px;
+  border-radius:10px;
+  direction:ltr;
+  white-space:nowrap;
+}
+
+/* demo page only - delete when copying into the site */
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--pc-ink)}
+</style>
+</head>
+<body>
+
+<figure class="photo-card" style="margin:28px">
+  <img src="photo.jpg" alt="Mohamed Hegazy">
+  <figcaption class="tag">Mohamed Hegazy</figcaption>
+</figure>
+
+</body>
+</html>
