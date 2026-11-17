@@ -103,7 +103,7 @@ export default function Hero({ profile }) {
             {/* Card 1: Services */}
             <button
               onClick={() => scrollTo('services')}
-              className="group text-start p-3 sm:p-4 rounded-[8px] border border-dashed border-white/25 hover:border-[#B9D895] bg-[#374159]/20 hover:bg-[#374159]/40 transition-all cursor-pointer flex flex-col justify-between h-28"
+              className="group text-start p-3 sm:p-4 rounded-[8px] border border-dashed border-white/25 hover:border-[#B9D895] bg-[#222936]/80 hover:bg-[#374159]/90 backdrop-blur-sm transition-all cursor-pointer flex flex-col justify-between h-28"
             >
               <span className="text-xs sm:text-sm font-medium text-[#E0F6C4]/70 group-hover:text-white transition-colors">
                 {t(lang, 'hero.cardServices')}
@@ -124,7 +124,7 @@ export default function Hero({ profile }) {
             {/* Card 2: Projects */}
             <button
               onClick={() => scrollTo('projects')}
-              className="group text-start p-3 sm:p-4 rounded-[8px] border border-dashed border-white/25 hover:border-[#B9D895] bg-[#374159]/20 hover:bg-[#374159]/40 transition-all cursor-pointer flex flex-col justify-between h-28"
+              className="group text-start p-3 sm:p-4 rounded-[8px] border border-dashed border-white/25 hover:border-[#B9D895] bg-[#222936]/80 hover:bg-[#374159]/90 backdrop-blur-sm transition-all cursor-pointer flex flex-col justify-between h-28"
             >
               <span className="text-xs sm:text-sm font-medium text-[#E0F6C4]/70 group-hover:text-white transition-colors">
                 {t(lang, 'hero.cardProjects')}
@@ -140,7 +140,7 @@ export default function Hero({ profile }) {
             {/* Card 3: About */}
             <button
               onClick={() => scrollTo('about')}
-              className="group text-start p-3 sm:p-4 rounded-[8px] border border-dashed border-white/25 hover:border-[#B9D895] bg-[#374159]/20 hover:bg-[#374159]/40 transition-all cursor-pointer flex flex-col justify-between h-28"
+              className="group text-start p-3 sm:p-4 rounded-[8px] border border-dashed border-white/25 hover:border-[#B9D895] bg-[#222936]/80 hover:bg-[#374159]/90 backdrop-blur-sm transition-all cursor-pointer flex flex-col justify-between h-28"
             >
               <span className="text-xs sm:text-sm font-medium text-[#E0F6C4]/70 group-hover:text-white transition-colors">
                 {t(lang, 'hero.cardAbout')}
