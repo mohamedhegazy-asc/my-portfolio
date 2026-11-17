@@ -44,19 +44,6 @@ export default function HeroPortrait({ profile }) {
             e.target.src = "/assets/avatar.jpg"
           }}
         />
-
-        {/* Small subtle badge at bottom */}
-        <div className="absolute bottom-3 left-4 right-4 z-30 py-2 px-3 rounded-xl bg-[#222936]/80 backdrop-blur-md border border-white/10 flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="text-[11px] font-semibold text-white tracking-wide">
-              {profile?.shortName || "Mohamed Hegazy"}
-            </span>
-            <span className="text-[10px] text-[#B9D895] font-medium">
-              Data Analyst • BIS
-            </span>
-          </div>
-          <div className="w-2 h-2 rounded-full bg-[#B9D895] animate-pulse" />
-        </div>
       </div>
     </div>
   )
