@@ -11,6 +11,7 @@ const articleSchema = new mongoose.Schema({
     author: { type: String, default: "Mohamed Mahmoud Hegazy" },
     published: { type: Boolean, default: true },
     status: { type: String, enum: ['public', 'private', 'draft'], default: 'public' },
+    attachments: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Asset' }],
     publishedAt: { type: Date, default: null },
     views: { type: Number, default: 0 },
     tags: [{ type: String }]
@@ -18,6 +19,7 @@ const articleSchema = new mongoose.Schema({
 
 articleSchema.index({ category: 1, createdAt: -1 })
 articleSchema.index({ published: 1, publishedAt: -1 })
+articleSchema.index({ title: 'text', excerpt: 'text', tags: 'text' })
 
 // Auto-set publishedAt when article is published
 articleSchema.pre('save', function () {

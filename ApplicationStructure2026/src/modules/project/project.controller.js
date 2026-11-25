@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import rateLimit from 'express-rate-limit'
 import {
     getProjectsService,
     getProjectBySlugService,
@@ -7,15 +8,28 @@ import {
     deleteProjectService,
     incrementProjectClicksService
 } from './project.service.js'
+import { requireAdmin, verifyAdminToken } from '../../middleware/requireAdmin.js'
+import { validateBody, projectCreateSchema, projectUpdateSchema } from '../../utils/validation.js'
 
 const router = Router()
 
-// GET /api/projects
+const clickLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 60,
+    standardHeaders: true,
+    legacyHeaders: false
+})
+
+// GET /api/projects — public, paginated & cached
 router.get('/', async (req, res, next) => {
     try {
-        const { category, all } = req.query
-        const projects = await getProjectsService(category, { all: all === 'true' })
-        return res.status(200).json({ success: true, count: projects.length, data: projects })
+        const result = await getProjectsService(req.query, { all: false })
+        res.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120')
+        return res.status(200).json({
+            success: true,
+            count: result.data.length,
+            ...result
+        })
     } catch (error) {
         next(error)
     }
@@ -25,9 +39,13 @@ router.get('/', async (req, res, next) => {
 router.get('/:slug', async (req, res, next) => {
     try {
         const { slug } = req.params
-        const project = await getProjectBySlugService(slug)
+        const isAdmin = Boolean(verifyAdminToken(req))
+        const project = await getProjectBySlugService(slug, { includePrivate: isAdmin })
         if (!project) {
             return res.status(404).json({ success: false, message: `Project with slug '${slug}' not found` })
+        }
+        if (!isAdmin) {
+            res.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120')
         }
         return res.status(200).json({ success: true, data: project })
     } catch (error) {
@@ -35,8 +53,8 @@ router.get('/:slug', async (req, res, next) => {
     }
 })
 
-// POST /api/projects/:slug/click  — track project card click
-router.post('/:slug/click', async (req, res, next) => {
+// POST /api/projects/:slug/click — rate-limited atomic counter
+router.post('/:slug/click', clickLimiter, async (req, res, next) => {
     try {
         await incrementProjectClicksService(req.params.slug)
         return res.status(200).json({ success: true })
@@ -45,8 +63,8 @@ router.post('/:slug/click', async (req, res, next) => {
     }
 })
 
-// POST /api/projects (Admin)
-router.post('/', async (req, res, next) => {
+// POST /api/projects (Admin + strict Zod validation)
+router.post('/', requireAdmin, validateBody(projectCreateSchema), async (req, res, next) => {
     try {
         const project = await createProjectService(req.body)
         return res.status(201).json({ success: true, message: 'Project created successfully', data: project })
@@ -55,8 +73,8 @@ router.post('/', async (req, res, next) => {
     }
 })
 
-// PUT /api/projects/:id (Admin)
-router.put('/:id', async (req, res, next) => {
+// PUT /api/projects/:id (Admin + strict Zod validation)
+router.put('/:id', requireAdmin, validateBody(projectUpdateSchema), async (req, res, next) => {
     try {
         const project = await updateProjectService(req.params.id, req.body)
         if (!project) return res.status(404).json({ success: false, message: 'Project not found' })
@@ -67,7 +85,7 @@ router.put('/:id', async (req, res, next) => {
 })
 
 // DELETE /api/projects/:id (Admin)
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requireAdmin, async (req, res, next) => {
     try {
         const success = await deleteProjectService(req.params.id)
         if (!success) return res.status(404).json({ success: false, message: 'Project not found' })

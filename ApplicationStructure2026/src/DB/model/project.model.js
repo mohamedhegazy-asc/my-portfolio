@@ -16,11 +16,14 @@ const projectSchema = new mongoose.Schema({
     featured: { type: Boolean, default: false },
     published: { type: Boolean, default: true },
     status: { type: String, enum: ['public', 'private', 'draft'], default: 'public' },
+    attachments: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Asset' }],
     clicks: { type: Number, default: 0 },
     description: { type: String, default: '' },
     tags: [{ type: String }],
     tech: [{ type: String }]
 }, { timestamps: true })
+
+projectSchema.index({ title: 'text', subtitle: 'text', tags: 'text' })
 
 export const Project = mongoose.models.Project || mongoose.model('Project', projectSchema)
 

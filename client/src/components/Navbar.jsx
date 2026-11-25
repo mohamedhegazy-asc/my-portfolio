@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Shield, Globe } from 'lucide-react'
+import { Globe } from 'lucide-react'
 import { useLang } from '../i18n/LanguageContext'
 import { t } from '../i18n/translations'
 
@@ -94,7 +94,7 @@ export default function Navbar({ profile, onOpenContact }) {
         })}
       </div>
 
-      {/* Right: Language Switcher, Admin Dashboard Link, & Contact Button */}
+      {/* Right: Language Switcher & Contact Button */}
       <div className="flex items-center gap-3 sm:gap-4">
         {/* Language Switcher Selector */}
         <div className="flex items-center bg-[#374159]/40 border border-[#374159]/70 rounded-full p-1 text-xs shadow-inner">
@@ -124,16 +124,6 @@ export default function Navbar({ profile, onOpenContact }) {
             عربي
           </button>
         </div>
-
-        {/* Discreet Dashboard Portal Link */}
-        <Link
-          to="/admin"
-          className="p-2 rounded-full text-[#E0F6C4]/50 hover:text-[#B9D895] hover:bg-[#374159]/40 transition-colors"
-          title={t(lang, 'nav.adminLabel')}
-          aria-label="Admin Dashboard"
-        >
-          <Shield className="w-4 h-4" />
-        </Link>
 
         {/* Contact Us button */}
         <button
@@ -198,14 +188,6 @@ export default function Navbar({ profile, onOpenContact }) {
               {item.label}
             </button>
           ))}
-          <Link
-            to="/admin"
-            onClick={() => setMobileMenuOpen(false)}
-            className="text-start text-sm font-semibold text-[#B9D895] pt-2 flex items-center gap-2"
-          >
-            <Shield className="w-4 h-4" />
-            <span>{t(lang, 'nav.openAdmin')}</span>
-          </Link>
         </div>
       )}
     </nav>

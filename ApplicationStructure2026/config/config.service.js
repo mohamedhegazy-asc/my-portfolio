@@ -20,8 +20,18 @@ if (existsSync(targetPath)) {
 
 export const port = process.env.PORT ?? 3000
 
-// Default to the Atlas connection string if not explicitly defined in process.env
-export const MONGO_URI = process.env.MONGO_URI ?? 'mongodb+srv://quiz:hegazy2003@cluster0.hv6iycd.mongodb.net/portfolio'
+// In production, MONGO_URI must come exclusively from process.env — fail loudly if missing
+if (NODE_ENV === 'production' && !process.env.MONGO_URI) {
+    throw new Error('[FATAL]: MONGO_URI environment variable is required in production but was not provided.')
+}
+
+// Development fallback only; never used in production
+export const MONGO_URI = process.env.MONGO_URI ?? (NODE_ENV === 'development' ? 'mongodb://127.0.0.1:27017/portfolio' : '')
 export const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173'
 
 export const SALT_ROUND = parseInt(process.env.SALT_ROUND ?? '10')
+export const JWT_SECRET = process.env.JWT_SECRET ?? (NODE_ENV === 'development' ? 'dev-only-jwt-secret-change-in-production' : null)
+export const ADMIN_CREDENTIAL_HASH = process.env.ADMIN_CREDENTIAL_HASH ?? null
+export const ADMIN_EXTRA_SECRET_HASH = process.env.ADMIN_EXTRA_SECRET_HASH ?? null
+export const ADMIN_PATH = process.env.ADMIN_PATH ?? null
+export const ANALYTICS_SALT = process.env.ANALYTICS_SALT ?? 'dev-analytics-salt'

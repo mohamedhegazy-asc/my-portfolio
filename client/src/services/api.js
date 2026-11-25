@@ -1,5 +1,49 @@
 const API_BASE = '/api'
 
+// Helper for admin/authenticated API requests: includes httpOnly cookie and notifies app on 401
+const adminFetch = async (url, options = {}) => {
+  const res = await fetch(url, {
+    ...options,
+    credentials: 'include'
+  })
+  if (res.status === 401) {
+    window.dispatchEvent(new CustomEvent('admin:unauthorized'))
+  }
+  return res
+}
+
+export const fetchAdminSession = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/admin/session`, { credentials: 'include' })
+    if (!res.ok) return { authenticated: false, requiresExtraSecret: false }
+    return await res.json()
+  } catch {
+    return { authenticated: false, requiresExtraSecret: false }
+  }
+}
+
+export const adminLogin = async ({ phone, confirmPhone, extraSecret }) => {
+  const res = await fetch(`${API_BASE}/admin/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ phone, confirmPhone, extraSecret })
+  })
+  const json = await res.json()
+  if (!res.ok || !json.success) {
+    throw new Error(json.message || 'Invalid credentials.')
+  }
+  return json
+}
+
+export const adminLogout = async () => {
+  const res = await fetch(`${API_BASE}/admin/logout`, {
+    method: 'POST',
+    credentials: 'include'
+  })
+  return await res.json()
+}
+
 export const fallbackProfile = {
   name: "Mohamed Mahmoud Hegazy",
   shortName: "Mohamed",
@@ -258,7 +302,7 @@ export const fetchProfile = async () => {
 }
 
 export const updateProfile = async (data) => {
-  const res = await fetch(`${API_BASE}/profile`, {
+  const res = await adminFetch(`${API_BASE}/profile`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
@@ -274,10 +318,10 @@ export const fetchProjects = async (category, options = {}) => {
   try {
     const params = new URLSearchParams()
     if (category && category !== 'All') params.append('category', category)
-    if (options.all) params.append('all', 'true')
 
-    const url = params.toString() ? `${API_BASE}/projects?${params.toString()}` : `${API_BASE}/projects`
-    const res = await fetch(url)
+    const basePath = options.all ? `${API_BASE}/admin/projects` : `${API_BASE}/projects`
+    const url = params.toString() ? `${basePath}?${params.toString()}` : basePath
+    const res = options.all ? await adminFetch(url) : await fetch(url)
     if (!res.ok) throw new Error('Failed to fetch projects')
     const json = await res.json()
     if (json.data && Array.isArray(json.data)) {
@@ -299,7 +343,7 @@ export const fetchProjects = async (category, options = {}) => {
 
 export const fetchProjectBySlug = async (slug) => {
   try {
-    const res = await fetch(`${API_BASE}/projects/${slug}`)
+    const res = await fetch(`${API_BASE}/projects/${slug}`, { credentials: 'include' })
     if (!res.ok) throw new Error('Failed to fetch project')
     const json = await res.json()
     return json.data || fallbackProjects.find(p => p.slug === slug)
@@ -310,7 +354,7 @@ export const fetchProjectBySlug = async (slug) => {
 }
 
 export const createProject = async (data) => {
-  const res = await fetch(`${API_BASE}/projects`, {
+  const res = await adminFetch(`${API_BASE}/projects`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
@@ -326,7 +370,7 @@ export const createProject = async (data) => {
 }
 
 export const updateProject = async (id, data) => {
-  const res = await fetch(`${API_BASE}/projects/${id}`, {
+  const res = await adminFetch(`${API_BASE}/projects/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
@@ -343,7 +387,7 @@ export const updateProject = async (id, data) => {
 }
 
 export const deleteProject = async (id) => {
-  const res = await fetch(`${API_BASE}/projects/${id}`, {
+  const res = await adminFetch(`${API_BASE}/projects/${id}`, {
     method: 'DELETE'
   })
   const json = await res.json()
@@ -360,10 +404,10 @@ export const fetchArticles = async (category, options = {}) => {
   try {
     const params = new URLSearchParams()
     if (category && category !== 'All') params.append('category', category)
-    if (options.all) params.append('all', 'true')
 
-    const url = params.toString() ? `${API_BASE}/articles?${params.toString()}` : `${API_BASE}/articles`
-    const res = await fetch(url)
+    const basePath = options.all ? `${API_BASE}/admin/articles` : `${API_BASE}/articles`
+    const url = params.toString() ? `${basePath}?${params.toString()}` : basePath
+    const res = options.all ? await adminFetch(url) : await fetch(url)
     if (!res.ok) throw new Error('Failed to fetch articles')
     const json = await res.json()
     if (json.data && Array.isArray(json.data)) {
@@ -385,7 +429,7 @@ export const fetchArticles = async (category, options = {}) => {
 
 export const fetchArticleBySlug = async (slug) => {
   try {
-    const res = await fetch(`${API_BASE}/articles/${slug}`)
+    const res = await fetch(`${API_BASE}/articles/${slug}`, { credentials: 'include' })
     if (!res.ok) throw new Error('Failed to fetch article')
     const json = await res.json()
     return json.data
@@ -400,7 +444,7 @@ export const fetchArticleBySlug = async (slug) => {
 }
 
 export const createArticle = async (data) => {
-  const res = await fetch(`${API_BASE}/articles`, {
+  const res = await adminFetch(`${API_BASE}/articles`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
@@ -416,7 +460,7 @@ export const createArticle = async (data) => {
 }
 
 export const updateArticle = async (id, data) => {
-  const res = await fetch(`${API_BASE}/articles/${id}`, {
+  const res = await adminFetch(`${API_BASE}/articles/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
@@ -433,7 +477,7 @@ export const updateArticle = async (id, data) => {
 }
 
 export const deleteArticle = async (id) => {
-  const res = await fetch(`${API_BASE}/articles/${id}`, {
+  const res = await adminFetch(`${API_BASE}/articles/${id}`, {
     method: 'DELETE'
   })
   const json = await res.json()
@@ -461,7 +505,7 @@ export const submitContact = async ({ name, email, subject = '', message }) => {
 
 export const fetchMessages = async () => {
   try {
-    const res = await fetch(`${API_BASE}/contact/messages`)
+    const res = await adminFetch(`${API_BASE}/contact/messages`)
     if (!res.ok) throw new Error('Failed to fetch messages')
     const json = await res.json()
     return json.data || fallbackMessages
@@ -472,7 +516,7 @@ export const fetchMessages = async () => {
 }
 
 export const deleteMessage = async (id) => {
-  const res = await fetch(`${API_BASE}/contact/messages/${id}`, {
+  const res = await adminFetch(`${API_BASE}/contact/messages/${id}`, {
     method: 'DELETE'
   })
   const json = await res.json()
@@ -508,7 +552,7 @@ export const fallbackAnalytics = {
 
 export const fetchAnalytics = async () => {
   try {
-    const res = await fetch(`${API_BASE}/analytics`)
+    const res = await adminFetch(`${API_BASE}/analytics`)
     if (!res.ok) throw new Error('Failed to fetch analytics')
     const json = await res.json()
     return json.data || fallbackAnalytics
@@ -554,7 +598,7 @@ export const trackProjectClick = async (slug) => {
 // Mark message as read/unread
 export const markMessageRead = async (id, isRead = true) => {
   try {
-    const res = await fetch(`${API_BASE}/contact/messages/${id}/read`, {
+    const res = await adminFetch(`${API_BASE}/contact/messages/${id}/read`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ isRead })
@@ -570,7 +614,7 @@ export const markMessageRead = async (id, isRead = true) => {
 // Star / unstar message
 export const starMessage = async (id, isStarred = true) => {
   try {
-    const res = await fetch(`${API_BASE}/contact/messages/${id}/star`, {
+    const res = await adminFetch(`${API_BASE}/contact/messages/${id}/star`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ isStarred })
@@ -581,5 +625,63 @@ export const starMessage = async (id, isStarred = true) => {
     console.warn('API starMessage error:', error.message)
     return null
   }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Admin Assets / Files APIs (P2 + P5)
+// ─────────────────────────────────────────────────────────────
+export const fetchAdminAssets = async ({ page = 1, limit = 20, status = '', kind = '', q = '' } = {}) => {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) })
+  if (status) params.append('status', status)
+  if (kind) params.append('kind', kind)
+  if (q) params.append('q', q)
+  const res = await adminFetch(`${API_BASE}/admin/assets?${params.toString()}`)
+  const json = await res.json()
+  if (!res.ok || !json.success) throw new Error(json.message || 'Failed to fetch assets')
+  return json
+}
+
+export const registerAdminAsset = async (payload) => {
+  const res = await adminFetch(`${API_BASE}/admin/assets`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+  const json = await res.json()
+  if (!res.ok || !json.success) throw new Error(json.message || 'Failed to register asset')
+  return json.data
+}
+
+export const updateAdminAsset = async (id, payload) => {
+  const res = await adminFetch(`${API_BASE}/admin/assets/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+  const json = await res.json()
+  if (!res.ok || !json.success) throw new Error(json.message || 'Failed to update asset')
+  return json.data
+}
+
+export const deleteAdminAsset = async (id) => {
+  const res = await adminFetch(`${API_BASE}/admin/assets/${id}`, {
+    method: 'DELETE'
+  })
+  const json = await res.json()
+  if (!res.ok || !json.success) throw new Error(json.message || 'Failed to delete asset')
+  return true
+}
+
+export const uploadBlobDirect = async (file, onProgress) => {
+  const { upload } = await import('@vercel/blob/client')
+  return await upload(file.name, file, {
+    access: 'public',
+    handleUploadUrl: `${API_BASE}/admin/assets/upload-token`,
+    onUploadProgress: (e) => {
+      if (onProgress && e.total) {
+        onProgress(Math.round((e.loaded / e.total) * 100))
+      }
+    }
+  })
 }
 

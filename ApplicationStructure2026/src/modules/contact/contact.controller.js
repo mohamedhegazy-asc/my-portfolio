@@ -1,10 +1,11 @@
 import { Router } from 'express'
 import rateLimit from 'express-rate-limit'
 import { createMessageService, getMessagesService, deleteMessageService, markMessageReadService, starMessageService } from './contact.service.js'
+import { requireAdmin } from '../../middleware/requireAdmin.js'
+import { validateBody, contactCreateSchema, messageToggleReadSchema, messageToggleStarSchema } from '../../utils/validation.js'
 
 const router = Router()
 
-// Rate limit for public submissions: max 5 per 15 minutes per IP
 const contactLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 5,
@@ -13,8 +14,8 @@ const contactLimiter = rateLimit({
     legacyHeaders: false,
 })
 
-// POST /api/contact
-router.post('/', contactLimiter, async (req, res, next) => {
+// POST /api/contact (Public — Zod validated & rate limited)
+router.post('/', contactLimiter, validateBody(contactCreateSchema), async (req, res, next) => {
     try {
         const { name, email, subject, message } = req.body
         const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim()
@@ -30,7 +31,7 @@ router.post('/', contactLimiter, async (req, res, next) => {
 })
 
 // GET /api/contact/messages (Admin)
-router.get('/messages', async (req, res, next) => {
+router.get('/messages', requireAdmin, async (req, res, next) => {
     try {
         const messages = await getMessagesService()
         return res.status(200).json({ success: true, count: messages.length, data: messages })
@@ -39,8 +40,8 @@ router.get('/messages', async (req, res, next) => {
     }
 })
 
-// PATCH /api/contact/messages/:id/read (Admin)
-router.patch('/messages/:id/read', async (req, res, next) => {
+// PATCH /api/contact/messages/:id/read (Admin + Zod)
+router.patch('/messages/:id/read', requireAdmin, validateBody(messageToggleReadSchema), async (req, res, next) => {
     try {
         const { isRead } = req.body
         const updated = await markMessageReadService(req.params.id, isRead !== false)
@@ -51,8 +52,8 @@ router.patch('/messages/:id/read', async (req, res, next) => {
     }
 })
 
-// PATCH /api/contact/messages/:id/star (Admin)
-router.patch('/messages/:id/star', async (req, res, next) => {
+// PATCH /api/contact/messages/:id/star (Admin + Zod)
+router.patch('/messages/:id/star', requireAdmin, validateBody(messageToggleStarSchema), async (req, res, next) => {
     try {
         const { isStarred } = req.body
         const updated = await starMessageService(req.params.id, isStarred !== false)
@@ -64,7 +65,7 @@ router.patch('/messages/:id/star', async (req, res, next) => {
 })
 
 // DELETE /api/contact/messages/:id (Admin)
-router.delete('/messages/:id', async (req, res, next) => {
+router.delete('/messages/:id', requireAdmin, async (req, res, next) => {
     try {
         const success = await deleteMessageService(req.params.id)
         if (!success) return res.status(404).json({ success: false, message: 'Message not found' })

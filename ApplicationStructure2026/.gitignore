@@ -1,2 +1,12 @@
-./config/.env.development
-./config/.env.production
+# Dependencies
+node_modules/
+
+# Environment files — ignore all .env* except .env.example
+.env*
+config/.env*
+!config/.env.example
+!.env.example
+
+# Logs
+logs/
+*.log

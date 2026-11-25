@@ -61,3 +61,37 @@ html[dir="rtl"] .font-serif {
 ::-webkit-scrollbar-thumb:hover {
   background: #B9D895;
 }
+
+/* Syntax Highlighting (matching ink/slate/sage/mint palette) */
+.hljs-comment,
+.hljs-quote {
+  color: #7e8da3;
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in {
+  color: #B9D895;
+  font-weight: 600;
+}
+.hljs-string,
+.hljs-title,
+.hljs-section,
+.hljs-attribute {
+  color: #E0F6C4;
+}
+.hljs-number,
+.hljs-literal,
+.hljs-symbol {
+  color: #93c5fd;
+}
+.hljs-variable,
+.hljs-template-variable,
+.hljs-params {
+  color: #fde68a;
+}
+.hljs-type,
+.hljs-class .hljs-title,
+.hljs-function .hljs-title {
+  color: #a5f3fc;
+}

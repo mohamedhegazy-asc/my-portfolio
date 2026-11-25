@@ -5,6 +5,8 @@ import { Download, ArrowLeft, ArrowRight, ExternalLink, ChevronLeft, ChevronRigh
 import { fetchProjectBySlug, fetchProjects } from '../services/api'
 import { useLang } from '../i18n/LanguageContext'
 import { t } from '../i18n/translations'
+import AttachmentsSection from '../components/viewers/AttachmentsSection'
+import RichContent from '../components/content/RichContent'
 
 // GitHub SVG Icon
 function GithubIcon({ className = "w-3.5 h-3.5" }) {
@@ -225,6 +227,20 @@ export default function ProjectDetailPage({ profile }) {
             </div>
           ))}
         </motion.div>
+
+        {/* 4.5 Rich Description (Markdown) */}
+        {project.description && project.description.trim() && (
+          <div className="mb-12 rounded-2xl bg-white/70 border border-[#222936]/15 p-6 sm:p-8 shadow-sm">
+            <RichContent content={project.description} theme="light" />
+          </div>
+        )}
+
+        {/* 4.6 Files & Data Attachments */}
+        {project.attachments && project.attachments.length > 0 && (
+          <div className="mb-16">
+            <AttachmentsSection attachments={project.attachments} theme="light" />
+          </div>
+        )}
 
         {/* 5. Navigation links */}
         <div className="pt-8 border-t border-[#222936]/15 flex items-center justify-between">

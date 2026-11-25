@@ -1,10 +1,24 @@
 import mongoose from 'mongoose'
 import { Article } from '../../DB/model/index.js'
 import { getDBStatus } from '../../DB/connection.db.js'
-import { defaultArticles } from '../../DB/seed.js'
 import { slugify, ensureUniqueSlug } from '../../utils/slugify.js'
+import { NODE_ENV } from '../../../config/config.service.js'
+import { sanitizeListQuery } from '../../utils/validation.js'
 
 let inMemoryArticles = []
+
+const ALLOWED_WRITE_FIELDS = [
+    'title', 'slug', 'excerpt', 'content', 'category', 'coverImage',
+    'readTime', 'author', 'published', 'status', 'publishedAt', 'tags', 'attachments'
+]
+
+function pickAllowed(data = {}) {
+    const out = {}
+    for (const key of ALLOWED_WRITE_FIELDS) {
+        if (data[key] !== undefined) out[key] = data[key]
+    }
+    return out
+}
 
 function buildFilter(idOrSlug) {
     if (mongoose.Types.ObjectId.isValid(idOrSlug)) {
@@ -13,13 +27,25 @@ function buildFilter(idOrSlug) {
     return { slug: idOrSlug }
 }
 
-export const getArticlesService = async (category, options = {}) => {
+export const getArticlesService = async (rawQueryOrCategory, options = {}) => {
     const isAll = options.all === true
+    const rawQuery = typeof rawQueryOrCategory === 'string'
+        ? { category: rawQueryOrCategory }
+        : (rawQueryOrCategory || {})
+    const { page, limit, category, q, sort } = sanitizeListQuery(rawQuery)
+    const skip = (page - 1) * limit
+
     if (getDBStatus()) {
         try {
             const query = {}
-            if (category && category !== 'All') {
-                query.category = category
+            if (category && category !== 'All') query.category = category
+            if (q) {
+                const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                query.$or = [
+                    { title: { $regex: escaped, $options: 'i' } },
+                    { excerpt: { $regex: escaped, $options: 'i' } },
+                    { tags: { $regex: escaped, $options: 'i' } }
+                ]
             }
             if (!isAll) {
                 query.$and = [
@@ -28,84 +54,95 @@ export const getArticlesService = async (category, options = {}) => {
                     { status: { $ne: 'draft' } }
                 ]
             }
-            const articles = await Article.find(query).sort({ publishedAt: -1, createdAt: -1 }).lean()
-            return articles || []
+
+            const sortObj = sort === 'views' ? { views: -1 } : { publishedAt: -1, createdAt: -1 }
+            const projection = isAll ? {} : { content: 0 }
+
+            const [total, data] = await Promise.all([
+                Article.countDocuments(query),
+                Article.find(query, projection).sort(sortObj).skip(skip).limit(limit).lean()
+            ])
+            return { data: data || [], page, limit, total }
         } catch (err) {
             console.error('Error fetching articles from MongoDB:', err.message)
+            if (NODE_ENV === 'production') throw err
         }
     }
-    let list = inMemoryArticles
+    if (NODE_ENV === 'production') {
+        throw new Error('Database connection unavailable')
+    }
+    let list = [...inMemoryArticles]
     if (!isAll) {
         list = list.filter(a => a.published !== false && a.status !== 'private' && a.status !== 'draft')
     }
     if (category && category !== 'All') {
-        return list.filter(a => a.category.toLowerCase() === category.toLowerCase())
+        list = list.filter(a => (a.category || '').toLowerCase() === category.toLowerCase())
     }
-    return list
+    if (q) {
+        const needle = q.toLowerCase()
+        list = list.filter(a => (a.title || '').toLowerCase().includes(needle) || (a.excerpt || '').toLowerCase().includes(needle))
+    }
+    return { data: list.slice(skip, skip + limit), page, limit, total: list.length }
 }
 
-export const getArticleBySlugService = async (slug) => {
+export const getArticleBySlugService = async (slug, options = {}) => {
+    const includePrivate = options.includePrivate === true
+    const publicFilter = includePrivate
+        ? { slug }
+        : { slug, published: { $ne: false }, status: { $nin: ['private', 'draft'] } }
+
     if (getDBStatus()) {
         try {
-            const article = await Article.findOneAndUpdate(
-                { slug },
+            return await Article.findOneAndUpdate(
+                publicFilter,
                 { $inc: { views: 1 } },
                 { new: true }
-            ).lean()
-            if (article) return article
+            )
+                .populate({ path: 'attachments', match: includePrivate ? {} : { status: 'public' } })
+                .lean()
         } catch (err) {
             console.error('Error fetching article by slug from MongoDB:', err.message)
+            if (NODE_ENV === 'production') throw err
         }
     }
+    if (NODE_ENV === 'production') throw new Error('Database connection unavailable')
     const found = inMemoryArticles.find(a => a.slug === slug)
-    if (found) found.views = (found.views || 0) + 1
-    return found || null
+    if (!found) return null
+    if (!includePrivate && (found.published === false || found.status === 'private' || found.status === 'draft')) {
+        return null
+    }
+    found.views = (found.views || 0) + 1
+    return found
 }
 
 export const createArticleService = async (data) => {
-    if (!data.title || !data.title.trim()) {
-        const error = new Error('Article title is required')
-        error.cause = { status: 400 }
-        throw error
-    }
-
-    if (!data.content || !data.content.trim()) {
-        const error = new Error('Article content is required')
-        error.cause = { status: 400 }
-        throw error
-    }
-
-    const baseSlug = slugify(data.slug || data.title)
-    const publishedAt = data.published !== false ? new Date() : null
-    const excerpt = data.excerpt && data.excerpt.trim() 
-        ? data.excerpt.trim() 
-        : data.content.trim().slice(0, 150) + '...'
+    const clean = pickAllowed(data)
+    const baseSlug = slugify(clean.slug || clean.title)
+    const publishedAt = clean.published !== false ? (clean.publishedAt ? new Date(clean.publishedAt) : new Date()) : null
+    const excerpt = clean.excerpt && clean.excerpt.trim()
+        ? clean.excerpt.trim()
+        : clean.content.trim().slice(0, 150) + '...'
 
     if (getDBStatus()) {
         const slug = await ensureUniqueSlug(Article, baseSlug)
-        const cleanData = {
-            ...data,
-            title: data.title.trim(),
+        return await Article.create({
+            ...clean,
+            title: clean.title.trim(),
             slug,
             excerpt,
-            content: data.content.trim(),
-            category: data.category || 'Data Analysis',
-            coverImage: data.coverImage || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80',
-            readTime: data.readTime || '5 min read',
-            author: data.author || 'Mohamed Mahmoud Hegazy',
-            published: data.published !== false,
-            publishedAt,
-            views: data.views || 0
-        }
-        delete cleanData._id
-
-        const newArticle = await Article.create(cleanData)
-        return newArticle
+            content: clean.content.trim(),
+            category: clean.category || 'Data Analysis',
+            coverImage: clean.coverImage || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80',
+            readTime: clean.readTime || '5 min read',
+            author: clean.author || 'Mohamed Mahmoud Hegazy',
+            published: clean.published !== false,
+            publishedAt
+        })
     }
 
     const mockArticle = {
-        _id: `art_${Date.now()}`,
-        ...data,
+        _id: new mongoose.Types.ObjectId().toString(),
+        ...clean,
         slug: baseSlug,
         excerpt,
         views: 0,
@@ -118,39 +155,35 @@ export const createArticleService = async (data) => {
 }
 
 export const updateArticleService = async (idOrSlug, data) => {
+    const updateData = pickAllowed(data)
     if (getDBStatus()) {
-        const filter = buildFilter(idOrSlug)
-        const existing = await Article.findOne(filter)
+        const existing = await Article.findOne(buildFilter(idOrSlug))
         if (!existing) {
             const error = new Error('Article not found')
             error.cause = { status: 404 }
             throw error
         }
 
-        const updateData = { ...data }
-        delete updateData._id
-
-        if (data.slug && data.slug.trim()) {
-            updateData.slug = await ensureUniqueSlug(Article, slugify(data.slug), existing._id)
-        } else if (data.title && data.title.trim() && !existing.slug) {
-            updateData.slug = await ensureUniqueSlug(Article, slugify(data.title), existing._id)
+        if (updateData.slug && updateData.slug.trim()) {
+            updateData.slug = await ensureUniqueSlug(Article, slugify(updateData.slug), existing._id)
+        } else if (updateData.title && updateData.title.trim() && !existing.slug) {
+            updateData.slug = await ensureUniqueSlug(Article, slugify(updateData.title), existing._id)
         }
 
-        if (data.published === true && !existing.publishedAt) {
+        if (updateData.published === true && !existing.publishedAt && !updateData.publishedAt) {
             updateData.publishedAt = new Date()
         }
 
-        const updated = await Article.findByIdAndUpdate(
+        return await Article.findByIdAndUpdate(
             existing._id,
             { $set: updateData },
             { new: true, runValidators: true }
-        )
-        return updated
+        ).lean()
     }
 
     const idx = inMemoryArticles.findIndex(a => a._id === idOrSlug || a.slug === idOrSlug)
     if (idx !== -1) {
-        inMemoryArticles[idx] = { ...inMemoryArticles[idx], ...data, updatedAt: new Date() }
+        inMemoryArticles[idx] = { ...inMemoryArticles[idx], ...updateData, updatedAt: new Date() }
         return inMemoryArticles[idx]
     }
     return null
@@ -158,8 +191,7 @@ export const updateArticleService = async (idOrSlug, data) => {
 
 export const deleteArticleService = async (idOrSlug) => {
     if (getDBStatus()) {
-        const filter = buildFilter(idOrSlug)
-        const deleted = await Article.findOneAndDelete(filter)
+        const deleted = await Article.findOneAndDelete(buildFilter(idOrSlug))
         return !!deleted
     }
     const idx = inMemoryArticles.findIndex(a => a._id === idOrSlug || a.slug === idOrSlug)

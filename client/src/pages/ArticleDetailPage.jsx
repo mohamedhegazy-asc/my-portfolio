@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Clock, Eye, Share2, ArrowLeft, ArrowRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Clock, Eye, Share2, ArrowLeft, ArrowRight, List, ChevronDown } from 'lucide-react'
 import { fetchArticleBySlug } from '../services/api'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
@@ -9,12 +8,16 @@ import { useLang } from '../i18n/LanguageContext'
 import { t } from '../i18n/translations'
 import { DarkSwal } from '../utils/alerts'
 import { formatPublishDateTime } from '../utils/date'
+import AttachmentsSection from '../components/viewers/AttachmentsSection'
+import RichContent, { extractHeadings, computeReadTime } from '../components/content/RichContent'
 
 export default function ArticleDetailPage({ profile, onOpenContact }) {
   const { slug } = useParams()
   const { lang, isRTL } = useLang()
   const [article, setArticle] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [readProgress, setReadProgress] = useState(0)
+  const [mobileTocOpen, setMobileTocOpen] = useState(false)
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -37,10 +40,27 @@ export default function ArticleDetailPage({ profile, onOpenContact }) {
   }, [slug])
 
   useEffect(() => {
+    const handleScroll = () => {
+      const doc = document.documentElement
+      const total = doc.scrollHeight - doc.clientHeight
+      if (total <= 0) {
+        setReadProgress(0)
+        return
+      }
+      setReadProgress(Math.min(100, Math.max(0, (window.scrollY / total) * 100)))
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  useEffect(() => {
     if (article?.title) {
       document.title = `${article.title} | ${isRTL ? 'محمد حجازي' : (profile?.name || 'Mohamed Hegazy')}`
     }
   }, [article, profile, isRTL])
+
+  const headings = useMemo(() => extractHeadings(article?.content || ''), [article?.content])
+  const estimatedReadTime = useMemo(() => computeReadTime(article?.content || '', lang), [article?.content, lang])
 
   if (loading) {
     return (
@@ -62,12 +82,21 @@ export default function ArticleDetailPage({ profile, onOpenContact }) {
   }
 
   const authorName = isRTL ? 'محمد محمود حجازي' : (article.author || profile?.name || "Mohamed Hegazy")
+  const hasToc = headings.length >= 2
 
   return (
     <div className="min-h-screen bg-[#222936] text-[#E0F6C4] flex flex-col justify-between selection:bg-[#B9D895] selection:text-[#222936]">
+      {/* Reading Progress Bar */}
+      <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-[#374159]/30 pointer-events-none">
+        <div
+          className="h-full bg-[#B9D895] transition-all duration-150"
+          style={{ width: `${readProgress}%` }}
+        />
+      </div>
+
       <Navbar profile={profile} onOpenContact={onOpenContact} />
 
-      <main className="max-w-4xl mx-auto px-6 md:px-12 py-12 flex-1 w-full space-y-8">
+      <main className={`${hasToc ? 'max-w-6xl' : 'max-w-4xl'} mx-auto px-6 md:px-12 py-12 flex-1 w-full space-y-8`}>
         
         {/* Back Link */}
         <Link
@@ -79,15 +108,15 @@ export default function ArticleDetailPage({ profile, onOpenContact }) {
         </Link>
 
         {/* Header Block */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-3 text-xs">
+        <div className="space-y-4 max-w-4xl">
+          <div className="flex flex-wrap items-center gap-3 text-xs">
             <span className="px-3 py-1 rounded-full font-bold bg-[#B9D895] text-[#222936]">
               {article.category}
             </span>
-            <span className="text-[#E0F6C4]/60 flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5" /> {article.readTime || (isRTL ? '5 دقائق قراءة' : '5 min read')}
+            <span className="text-[#E0F6C4]/70 flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5" /> {estimatedReadTime}
             </span>
-            <span className="text-[#E0F6C4]/60 flex items-center gap-1">
+            <span className="text-[#E0F6C4]/70 flex items-center gap-1">
               <Eye className="w-3.5 h-3.5" /> {article.views || 1} {isRTL ? 'مشاهدة' : 'views'}
             </span>
           </div>
@@ -119,17 +148,85 @@ export default function ArticleDetailPage({ profile, onOpenContact }) {
             <img
               src={article.coverImage}
               alt={article.title}
+              loading="lazy"
               className="w-full h-full object-cover"
             />
           </div>
         )}
 
-        {/* Full Article Content */}
-        <div 
-          className="bg-[#374159]/25 border border-white/10 rounded-2xl p-6 sm:p-10 space-y-6 text-sm sm:text-base leading-relaxed text-[#E0F6C4]/90 whitespace-pre-line font-sans"
-          dir="auto"
-        >
-          {article.content}
+        {/* Collapsible TOC for Mobile */}
+        {hasToc && (
+          <div className="lg:hidden rounded-xl bg-[#374159]/30 border border-white/10 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setMobileTocOpen(v => !v)}
+              aria-expanded={mobileTocOpen}
+              className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-[#B9D895] cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <List className="w-4 h-4" />
+                {t(lang, 'content.tocTitle')}
+              </span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${mobileTocOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {mobileTocOpen && (
+              <nav aria-label={t(lang, 'content.tocTitle')} className="px-4 pb-3 space-y-1.5 border-t border-white/10 pt-2">
+                {headings.map((h) => (
+                  <a
+                    key={h.id}
+                    href={`#${h.id}`}
+                    onClick={() => setMobileTocOpen(false)}
+                    className={`block text-xs text-[#E0F6C4]/80 hover:text-[#B9D895] py-1 ${h.level === 3 ? 'ps-4 opacity-80' : 'font-semibold'}`}
+                    dir="auto"
+                  >
+                    {h.text}
+                  </a>
+                ))}
+              </nav>
+            )}
+          </div>
+        )}
+
+        {/* Main Content + Desktop Sticky TOC */}
+        <div className={hasToc ? 'grid grid-cols-1 lg:grid-cols-12 gap-8 items-start' : ''}>
+          <div className={`${hasToc ? 'lg:col-span-8' : ''} space-y-8 min-w-0`}>
+            <div className="bg-[#374159]/25 border border-white/10 rounded-2xl p-6 sm:p-10">
+              <RichContent content={article.content} theme="dark" />
+            </div>
+
+            {article.attachments && article.attachments.length > 0 && (
+              <AttachmentsSection attachments={article.attachments} theme="dark" />
+            )}
+          </div>
+
+          {hasToc && (
+            <aside className="hidden lg:block lg:col-span-4 sticky top-24">
+              <nav
+                aria-label={t(lang, 'content.tocTitle')}
+                className="rounded-2xl bg-[#374159]/25 border border-white/10 p-5 space-y-3"
+              >
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#B9D895]">
+                  <List className="w-4 h-4" />
+                  <span>{t(lang, 'content.tocTitle')}</span>
+                </div>
+                <ul className="space-y-1.5 border-s border-[#374159] ps-3">
+                  {headings.map((h) => (
+                    <li key={h.id}>
+                      <a
+                        href={`#${h.id}`}
+                        className={`block text-xs leading-relaxed text-[#E0F6C4]/75 hover:text-[#B9D895] transition-colors py-0.5 ${
+                          h.level === 3 ? 'ps-3 text-[11px] opacity-80' : 'font-medium'
+                        }`}
+                        dir="auto"
+                      >
+                        {h.text}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            </aside>
+          )}
         </div>
 
         {/* Footer Navigation */}

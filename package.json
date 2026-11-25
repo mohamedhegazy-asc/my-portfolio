@@ -10,18 +10,26 @@
     "dev:frontend": "npm --prefix client run dev",
     "build": "npm --prefix client install && npm --prefix client run build",
     "vercel-build": "npm --prefix client install && npm --prefix client run build",
+    "test": "npm --prefix ApplicationStructure2026 test",
     "install:all": "npm --prefix ApplicationStructure2026 install && npm --prefix client install"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.5",
+    "@vercel/blob": "^2.9.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "bcryptjs": "^3.0.3",
+    "compression": "^1.8.2",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.3",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.12.0",
     "tailwindcss": "^4.3.5",
-    "vite": "^8.3.6"
+    "vite": "^8.3.6",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

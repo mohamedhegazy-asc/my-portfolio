@@ -230,9 +230,11 @@ export const seedDB = async () => {
     const stripId = (arr) => arr.map(({ _id, ...rest }) => rest)
 
     try {
-        await Profile.deleteMany({})
-        await Profile.create(defaultProfile)
-        console.log("[DB Seed]: Profile data updated to Data Analyst successfully.")
+        const profileCount = await Profile.countDocuments()
+        if (profileCount === 0) {
+            await Profile.create(defaultProfile)
+            console.log("[DB Seed]: Default profile created.")
+        }
 
         const countProjects = await Project.countDocuments()
         if (countProjects === 0) {
@@ -246,23 +248,25 @@ export const seedDB = async () => {
             console.log("[DB Seed]: Articles seeded successfully.")
         }
 
-        const countMessages = await Message.countDocuments()
-        if (countMessages === 0) {
-            await Message.insertMany(stripId(defaultMessages))
-            console.log("[DB Seed]: Sample messages seeded successfully.")
-        }
-
-        // Seed empty daily snapshots for the last 7 days if none exist
-        const countSnapshots = await DailySnapshot.countDocuments()
-        if (countSnapshots === 0) {
-            const snapshots = []
-            for (let i = 6; i >= 0; i--) {
-                const d = new Date()
-                d.setDate(d.getDate() - i)
-                snapshots.push({ date: d.toISOString().slice(0, 10), views: 0, uniqueVisitors: 0, projectClicks: 0, cvDownloads: 0 })
+        const isDemoSeed = process.env.NODE_ENV === 'development' && process.env.SEED_DEMO === 'true'
+        if (isDemoSeed) {
+            const countMessages = await Message.countDocuments()
+            if (countMessages === 0) {
+                await Message.insertMany(stripId(defaultMessages))
+                console.log("[DB Seed]: Sample messages seeded (dev demo mode).")
             }
-            await DailySnapshot.insertMany(snapshots)
-            console.log("[DB Seed]: Daily snapshot baseline seeded.")
+
+            const countSnapshots = await DailySnapshot.countDocuments()
+            if (countSnapshots === 0) {
+                const snapshots = []
+                for (let i = 6; i >= 0; i--) {
+                    const d = new Date()
+                    d.setDate(d.getDate() - i)
+                    snapshots.push({ date: d.toISOString().slice(0, 10), views: 0, uniqueVisitors: 0, projectClicks: 0, cvDownloads: 0 })
+                }
+                await DailySnapshot.insertMany(snapshots)
+                console.log("[DB Seed]: Daily snapshot baseline seeded (dev demo mode).")
+            }
         }
 
         return true

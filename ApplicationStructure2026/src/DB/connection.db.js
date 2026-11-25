@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import { MONGO_URI } from '../../config/config.service.js'
+import { MONGO_URI, NODE_ENV } from '../../config/config.service.js'
 
 let isConnected = false
 
@@ -10,6 +10,16 @@ export const connectDB = async () => {
         return mongoose.connection
     }
 
+    if (!MONGO_URI) {
+        if (NODE_ENV === 'production') {
+            isConnected = false
+            throw new Error('[FATAL]: MONGO_URI is missing in production environment.')
+        }
+        console.warn('[MongoDB Warning]: MONGO_URI not defined. Running in memory fallback mode (development only).')
+        isConnected = false
+        return null
+    }
+
     try {
         mongoose.set('strictQuery', false)
         const conn = await mongoose.connect(MONGO_URI, {
@@ -18,15 +28,15 @@ export const connectDB = async () => {
             connectTimeoutMS: 10000,
         })
         isConnected = true
-        console.log(`[MongoDB Atlas Connected]: ${conn.connection.host}/${conn.connection.name}`)
+        console.log(`[MongoDB Connected]: ${conn.connection.host}/${conn.connection.name}`)
 
         mongoose.connection.on('disconnected', () => {
             isConnected = false
-            console.warn('[MongoDB]: Disconnected from Atlas.')
+            console.warn('[MongoDB]: Disconnected.')
         })
         mongoose.connection.on('reconnected', () => {
             isConnected = true
-            console.log('[MongoDB]: Reconnected to Atlas.')
+            console.log('[MongoDB]: Reconnected.')
         })
         mongoose.connection.on('error', (err) => {
             isConnected = false
@@ -36,8 +46,12 @@ export const connectDB = async () => {
         return conn
     } catch (error) {
         isConnected = false
-        console.warn(`[MongoDB Warning]: Could not connect to Atlas — ${error.message}`)
-        console.warn('[Portfolio App]: Operating in memory/seed fallback mode.')
+        console.error(`[MongoDB Error]: Could not connect — ${error.message}`)
+        if (NODE_ENV === 'production') {
+            // Rethrow in production to fail cleanly and return HTTP 503 from the API
+            throw error
+        }
+        console.warn('[Portfolio App]: Operating in memory/seed fallback mode (development only).')
         return null
     }
 }
