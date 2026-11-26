@@ -4,14 +4,26 @@ import { getDBStatus } from '../../DB/connection.db.js'
 import { slugify, ensureUniqueSlug } from '../../utils/slugify.js'
 import { NODE_ENV } from '../../../config/config.service.js'
 import { sanitizeListQuery } from '../../utils/validation.js'
+import { verifyReferencedPublicIdsExist } from '../image/image.service.js'
 
 let inMemoryProjects = []
 
 const ALLOWED_WRITE_FIELDS = [
     'title', 'slug', 'subtitle', 'logoUrl', 'category', 'type', 'client',
-    'thumbnail', 'images', 'liveUrl', 'repoUrl', 'order', 'featured',
-    'published', 'status', 'description', 'tags', 'tech', 'attachments'
+    'thumbnail', 'thumbnailImage', 'images', 'gallery', 'liveUrl', 'repoUrl',
+    'order', 'featured', 'published', 'status', 'description', 'tags', 'tech', 'attachments'
 ]
+
+function collectProjectPublicIds(data = {}) {
+    const ids = []
+    if (data.thumbnailImage?.publicId) ids.push(data.thumbnailImage.publicId)
+    if (Array.isArray(data.gallery)) {
+        for (const item of data.gallery) {
+            if (item?.publicId) ids.push(item.publicId)
+        }
+    }
+    return ids
+}
 
 function pickAllowed(data = {}) {
     const out = {}
@@ -128,6 +140,7 @@ export const createProjectService = async (data) => {
     const baseSlug = slugify(clean.slug || clean.title)
 
     if (getDBStatus()) {
+        await verifyReferencedPublicIdsExist(collectProjectPublicIds(clean))
         const slug = await ensureUniqueSlug(Project, baseSlug)
         return await Project.create({
             ...clean,
@@ -158,6 +171,7 @@ export const createProjectService = async (data) => {
 export const updateProjectService = async (idOrSlug, data) => {
     const updateData = pickAllowed(data)
     if (getDBStatus()) {
+        await verifyReferencedPublicIdsExist(collectProjectPublicIds(updateData))
         const existing = await Project.findOne(buildFilter(idOrSlug))
         if (!existing) {
             const error = new Error('Project not found')

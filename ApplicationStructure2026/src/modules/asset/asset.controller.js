@@ -9,6 +9,7 @@ import {
     FORBIDDEN_EXTENSIONS,
     MAX_ASSET_SIZE_BYTES,
     getExtension,
+    getPublicUploadConfig,
     getPublicAssetByIdService,
     incrementAssetDownloadService,
     incrementAssetViewService,
@@ -72,6 +73,14 @@ publicAssetRouter.post('/:id/view', assetCounterLimiter, async (req, res, next) 
 })
 
 // ─── ADMIN ASSET ENDPOINTS (requireAdmin) ────────────────────────────────────
+
+// GET /api/admin/assets/config — returns server-side upload allow-list & max size
+adminAssetRouter.get('/config', requireAdmin, (req, res) => {
+    return res.status(200).json({
+        success: true,
+        data: getPublicUploadConfig()
+    })
+})
 
 // POST /api/admin/assets/upload-token — browser-direct Vercel Blob upload token
 adminAssetRouter.post('/upload-token', requireAdmin, async (req, res) => {

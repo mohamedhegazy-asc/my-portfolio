@@ -1,5 +1,13 @@
 import mongoose from 'mongoose'
 
+const thumbnailImageSchema = new mongoose.Schema({
+    publicId: { type: String, trim: true, default: '' },
+    width: { type: Number, min: 1 },
+    height: { type: Number, min: 1 },
+    alt: { type: String, trim: true, default: '', maxlength: 300 },
+    altAr: { type: String, trim: true, default: '', maxlength: 300 }
+}, { _id: false })
+
 const articleSchema = new mongoose.Schema({
     title: { type: String, required: true },
     slug: { type: String, required: true, unique: true },
@@ -7,6 +15,7 @@ const articleSchema = new mongoose.Schema({
     content: { type: String, required: true },
     category: { type: String, required: true, default: "Data Analysis" },
     coverImage: { type: String, default: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80" },
+    thumbnailImage: { type: thumbnailImageSchema, default: undefined },
     readTime: { type: String, default: "5 min read" },
     author: { type: String, default: "Mohamed Mahmoud Hegazy" },
     published: { type: Boolean, default: true },

@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Plus, Edit3, Trash2, Save, X, Upload, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Plus, Edit3, Trash2, Save, X, CheckCircle2, AlertCircle } from 'lucide-react'
 import DataTable from '../components/DataTable'
 import StatusBadge from '../components/StatusBadge'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EmptyState from '../components/EmptyState'
 import FormField from '../components/FormField'
+import MarkdownEditor from '../components/MarkdownEditor'
+import ThumbnailUploader from '../components/ThumbnailUploader'
+import GalleryManager from '../components/GalleryManager'
+import AttachmentManager from '../components/AttachmentManager'
 import { useToast } from '../components/Toast'
-import { createProject, updateProject, deleteProject, uploadBlobDirect } from '../../services/api'
+import { createProject, updateProject, deleteProject } from '../../services/api'
 import { useLang } from '../../i18n/LanguageContext'
 import { t } from '../../i18n/translations'
 
@@ -27,6 +31,8 @@ const EMPTY_FORM = {
   type: 'BI Dashboard',
   client: 'Client Studio',
   thumbnail: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
+  thumbnailImage: undefined,
+  gallery: [],
   liveUrl: '',
   repoUrl: '',
   status: 'public',
@@ -34,15 +40,36 @@ const EMPTY_FORM = {
   attachments: []
 }
 
-export default function Projects({ projects = [], setProjects, assets = [], loading, onRefresh }) {
+export default function Projects({ projects = [], setProjects, assets = [], setAssets, loading, onRefresh }) {
   const { lang, isRTL } = useLang()
   const { addToast } = useToast()
 
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [dirty, setDirty] = useState(false)
+  const [uploadingCount, setUploadingCount] = useState(0)
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
+
+  const updateForm = (patch) => {
+    setForm((prev) => ({ ...prev, ...patch }))
+    setDirty(true)
+  }
+
+  const handleUploadingChange = useCallback((isUp) => {
+    setUploadingCount((c) => Math.max(0, c + (isUp ? 1 : -1)))
+  }, [])
+
+  useEffect(() => {
+    if (!formOpen || (!dirty && uploadingCount === 0)) return
+    const handleUnload = (e) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handleUnload)
+    return () => window.removeEventListener('beforeunload', handleUnload)
+  }, [formOpen, dirty, uploadingCount])
 
   const slugTaken = Boolean(
     form.slug &&
@@ -52,6 +79,7 @@ export default function Projects({ projects = [], setProjects, assets = [], load
   const openNew = () => {
     setEditing(null)
     setForm(EMPTY_FORM)
+    setDirty(false)
     setFormOpen(true)
   }
 
@@ -66,12 +94,15 @@ export default function Projects({ projects = [], setProjects, assets = [], load
       type: p.type || 'BI Dashboard',
       client: p.client || 'Client Studio',
       thumbnail: p.thumbnail || '',
+      thumbnailImage: p.thumbnailImage?.publicId ? p.thumbnailImage : undefined,
+      gallery: Array.isArray(p.gallery) ? p.gallery : [],
       liveUrl: p.liveUrl || '',
       repoUrl: p.repoUrl || '',
       status: p.status || (p.published === false ? 'private' : 'public'),
       publishedAt: p.publishedAt ? String(p.publishedAt).slice(0, 16) : '',
       attachments: (p.attachments || []).map((a) => (typeof a === 'object' ? a._id : a))
     })
+    setDirty(false)
     setFormOpen(true)
   }
 
@@ -97,6 +128,7 @@ export default function Projects({ projects = [], setProjects, assets = [], load
         await createProject(payload)
         addToast(isRTL ? 'تم إضافة المشروع' : 'Project created')
       }
+      setDirty(false)
       setFormOpen(false)
       onRefresh?.()
     } catch (err) {
@@ -142,15 +174,6 @@ export default function Projects({ projects = [], setProjects, assets = [], load
     } catch (err) {
       addToast(err.message, 'error')
     }
-  }
-
-  const toggleAttachment = (assetId) => {
-    setForm((prev) => ({
-      ...prev,
-      attachments: prev.attachments.includes(assetId)
-        ? prev.attachments.filter((id) => id !== assetId)
-        : [...prev.attachments, assetId]
-    }))
   }
 
   const columns = [
@@ -243,56 +266,61 @@ export default function Projects({ projects = [], setProjects, assets = [], load
           </FormField>
 
           <FormField label={isRTL ? 'تفاصيل المشروع (Markdown)' : 'Full Description (Markdown)'}>
-            <textarea rows={4} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-mono" />
+            <MarkdownEditor
+              value={form.description}
+              onChange={(description) => updateForm({ description })}
+              assets={assets}
+              maxLength={20000}
+              onUploadingChange={handleUploadingChange}
+            />
           </FormField>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <FormField label={isRTL ? 'الفئة' : 'Category'}>
-              <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm" />
+              <input value={form.category} onChange={(e) => updateForm({ category: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm" />
             </FormField>
             <FormField label={isRTL ? 'الحالة' : 'Status'}>
-              <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm">
+              <select value={form.status} onChange={(e) => updateForm({ status: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm">
                 <option value="public">public</option>
                 <option value="private">private</option>
                 <option value="draft">draft</option>
               </select>
             </FormField>
             <FormField label={t(lang, 'adminP5.scheduleAt')}>
-              <input type="datetime-local" value={form.publishedAt} onChange={(e) => setForm({ ...form, publishedAt: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm" dir="ltr" />
+              <input type="datetime-local" value={form.publishedAt} onChange={(e) => updateForm({ publishedAt: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm" dir="ltr" />
             </FormField>
           </div>
 
-          <FormField label={isRTL ? 'صورة الغلاف' : 'Cover Image'}>
-            <div className="flex gap-2">
-              <input value={form.thumbnail} onChange={(e) => setForm({ ...form, thumbnail: e.target.value })} className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm" dir="ltr" />
-              <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold cursor-pointer">
-                <Upload className="w-3.5 h-3.5" />
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleCoverUpload(e.target.files?.[0])} />
-              </label>
-            </div>
+          <FormField label={isRTL ? 'الصورة المصغرة (16:9)' : 'Thumbnail Image (16:9)'}>
+            <ThumbnailUploader
+              thumbnailImage={form.thumbnailImage}
+              legacyUrl={form.thumbnail}
+              onChange={({ thumbnailImage, legacyUrl }) =>
+                updateForm({ thumbnailImage, thumbnail: legacyUrl })
+              }
+              onUploadingChange={handleUploadingChange}
+            />
           </FormField>
 
-          {assets.length > 0 && (
-            <FormField label={t(lang, 'adminP5.attachments')}>
-              <div className="flex flex-wrap gap-2">
-                {assets.map((a) => {
-                  const active = form.attachments.includes(a._id)
-                  return (
-                    <button
-                      key={a._id}
-                      type="button"
-                      onClick={() => toggleAttachment(a._id)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium border cursor-pointer ${
-                        active ? 'bg-[#222936] text-[#B9D895] border-[#222936]' : 'bg-gray-50 text-gray-600 border-gray-200'
-                      }`}
-                    >
-                      {a.title} ({a.kind})
-                    </button>
-                  )
-                })}
-              </div>
-            </FormField>
-          )}
+          <FormField label={isRTL ? 'معرض صور المشروع (حتى 20 صورة)' : 'Project Gallery (up to 20 images)'}>
+            <GalleryManager
+              gallery={form.gallery}
+              onChange={(gallery) => updateForm({ gallery })}
+              onUploadingChange={handleUploadingChange}
+            />
+          </FormField>
+
+          <FormField label={t(lang, 'adminP5.attachments')}>
+            <AttachmentManager
+              attachments={form.attachments}
+              onChange={(next) => setForm((prev) => ({ ...prev, attachments: next }))}
+              assets={assets}
+              onAssetCreated={(created) => setAssets?.((prev) => [created, ...prev])}
+              onAssetUpdated={(updated) =>
+                setAssets?.((prev) => prev.map((a) => (a._id === updated._id ? updated : a)))
+              }
+            />
+          </FormField>
 
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setFormOpen(false)} className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-semibold cursor-pointer">

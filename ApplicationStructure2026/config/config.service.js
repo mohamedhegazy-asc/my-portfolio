@@ -35,3 +35,9 @@ export const ADMIN_CREDENTIAL_HASH = process.env.ADMIN_CREDENTIAL_HASH ?? null
 export const ADMIN_EXTRA_SECRET_HASH = process.env.ADMIN_EXTRA_SECRET_HASH ?? null
 export const ADMIN_PATH = process.env.ADMIN_PATH ?? null
 export const ANALYTICS_SALT = process.env.ANALYTICS_SALT ?? 'dev-analytics-salt'
+export const MAX_UPLOAD_MB = Math.max(1, parseInt(process.env.MAX_UPLOAD_MB ?? '15', 10) || 15)
+export const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+
+export const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME ?? ''
+export const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY ?? ''
+export const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET ?? ''

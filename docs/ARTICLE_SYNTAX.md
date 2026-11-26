@@ -84,8 +84,32 @@ $$
 
 ---
 
-## 7. Images (responsive & lazy-loaded)
+## 7. Images (Cloudinary Inline & External HTTPS)
 
+### Cloudinary Inline Image Syntax (`cld:`)
+```markdown
+![Alt text](cld:<publicId>#ar=<ratio>&w=<width>&align=<alignment> "Optional caption")
+```
+
+- `publicId`: Cloudinary public ID inside `portfolio/...`
+- `ar`: Aspect ratio (`16:9`, `4:3`, `1:1`, `3:2`) — prevents layout shifts (CLS)
+- `w`: Display width percentage (`50`, `75`, or `100`)
+- `align`: RTL-aware alignment (`center`, `start`, or `end`)
+
+**Example (75% width, aligned to start, with caption):**
+```markdown
+![Quarterly revenue breakdown](cld:portfolio/inline/q4-revenue#ar=16:9&w=75&align=start "Q4 Revenue by Region")
+```
+
+**Consecutive Images (Grouped Lightbox Gallery):**
+Place multiple image lines consecutively (with or without blank lines between them) to navigate them together inside the Lightbox:
+```markdown
+![Dashboard Overview](cld:portfolio/inline/dash-1#ar=16:9&w=100&align=center "Overview")
+
+![Cohort Retention](cld:portfolio/inline/dash-2#ar=16:9&w=100&align=center "Retention")
+```
+
+### Standard HTTPS Image
 ```markdown
 ![Distribution of monthly revenue](https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80)
 ```

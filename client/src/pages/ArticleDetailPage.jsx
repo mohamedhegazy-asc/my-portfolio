@@ -8,6 +8,9 @@ import { useLang } from '../i18n/LanguageContext'
 import { t } from '../i18n/translations'
 import { DarkSwal } from '../utils/alerts'
 import { formatPublishDateTime } from '../utils/date'
+import { resolveThumbnailSource } from '../utils/imageDisplay'
+import CloudImage from '../components/media/CloudImage'
+import Lightbox from '../components/media/Lightbox'
 import AttachmentsSection from '../components/viewers/AttachmentsSection'
 import RichContent, { extractHeadings, computeReadTime } from '../components/content/RichContent'
 
@@ -18,6 +21,7 @@ export default function ArticleDetailPage({ profile, onOpenContact }) {
   const [loading, setLoading] = useState(true)
   const [readProgress, setReadProgress] = useState(0)
   const [mobileTocOpen, setMobileTocOpen] = useState(false)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -143,16 +147,37 @@ export default function ArticleDetailPage({ profile, onOpenContact }) {
         </div>
 
         {/* Featured Cover Image */}
-        {article.coverImage && (
-          <div className="rounded-2xl overflow-hidden border border-white/10 shadow-xl max-h-[440px] bg-[#374159]">
-            <img
-              src={article.coverImage}
-              alt={article.title}
-              loading="lazy"
-              className="w-full h-full object-cover"
-            />
-          </div>
-        )}
+        {(() => {
+          const cover = resolveThumbnailSource(article, 'coverImage', lang, 1280)
+          if (cover.isPlaceholder) return null
+          return (
+            <>
+              <div className="rounded-2xl overflow-hidden border border-white/10 shadow-xl max-h-[440px] bg-[#374159]">
+                <CloudImage
+                  publicId={cover.publicId}
+                  fallbackUrl={cover.src}
+                  preset="cover"
+                  sizes="(max-width: 768px) 100vw, 896px"
+                  width={cover.width}
+                  height={cover.height}
+                  alt={cover.alt}
+                  altAr={cover.altAr}
+                  priority={true}
+                  onClick={() => setLightboxOpen(true)}
+                  wrapperClassName="w-full h-full relative overflow-hidden bg-[#374159] cursor-zoom-in"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              {lightboxOpen && (
+                <Lightbox
+                  items={[cover]}
+                  initialIndex={0}
+                  onClose={() => setLightboxOpen(false)}
+                />
+              )}
+            </>
+          )
+        })()}
 
         {/* Collapsible TOC for Mobile */}
         {hasToc && (

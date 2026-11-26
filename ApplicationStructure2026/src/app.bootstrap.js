@@ -16,6 +16,7 @@ import {
     analyticsRouter,
     publicAssetRouter,
     adminAssetRouter,
+    adminImageRouter,
 } from './modules/index.js'
 import adminRouter from './modules/admin/admin.controller.js'
 
@@ -128,6 +129,7 @@ export function createApp() {
 
     // 10. Admin & Public API routes (legacy /auth & /user removed after confirming unused)
     app.use('/api/admin/assets', adminAssetRouter)
+    app.use('/api/admin/images', adminImageRouter)
     app.use('/api/admin', adminRouter)
     app.use('/api/profile', profileRouter)
     app.use('/api/projects', projectRouter)

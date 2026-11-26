@@ -17,6 +17,7 @@
     "@types/react-dom": "^19.3.0",
     "@vercel/blob": "^2.9.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "docx-preview": "0.4.1",
     "exceljs": "^4.4.0",
     "framer-motion": "^14.11.1",
     "highlight.js": "^11.12.0",

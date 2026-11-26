@@ -90,6 +90,7 @@ export default function AdminApp({ onLogout }) {
             projects={projects}
             setProjects={setProjects}
             assets={assets}
+            setAssets={setAssets}
             loading={loading}
             onRefresh={loadAll}
           />
@@ -99,6 +100,7 @@ export default function AdminApp({ onLogout }) {
             articles={articles}
             setArticles={setArticles}
             assets={assets}
+            setAssets={setAssets}
             loading={loading}
             onRefresh={loadAll}
           />

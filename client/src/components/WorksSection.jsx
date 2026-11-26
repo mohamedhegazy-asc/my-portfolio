@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Download, ArrowUpRight } from 'lucide-react'
 import { useLang } from '../i18n/LanguageContext'
 import { t } from '../i18n/translations'
+import CloudImage from './media/CloudImage'
 import { trackEvent } from '../services/api'
 
 export default function WorksSection({ profile, projects }) {
@@ -152,11 +153,17 @@ export default function WorksSection({ profile, projects }) {
                       </div>
                       
                       {/* Project image inset */}
-                      <img
-                        src={project.thumbnail}
-                        alt={project.title}
-                        loading="lazy"
-                        className="w-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                      <CloudImage
+                        publicId={project.thumbnailImage?.publicId}
+                        fallbackUrl={project.thumbnail}
+                        preset="card"
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        width={project.thumbnailImage?.width}
+                        height={project.thumbnailImage?.height}
+                        alt={project.thumbnailImage?.alt || project.title}
+                        altAr={project.thumbnailImage?.altAr || project.title}
+                        wrapperClassName="w-full relative overflow-hidden bg-slate-200/50"
+                        className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
                         style={{ height: 'calc(100% - 20px)' }}
                       />
                     </div>

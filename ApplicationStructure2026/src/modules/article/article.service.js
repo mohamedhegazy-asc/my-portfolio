@@ -4,11 +4,12 @@ import { getDBStatus } from '../../DB/connection.db.js'
 import { slugify, ensureUniqueSlug } from '../../utils/slugify.js'
 import { NODE_ENV } from '../../../config/config.service.js'
 import { sanitizeListQuery } from '../../utils/validation.js'
+import { verifyReferencedPublicIdsExist } from '../image/image.service.js'
 
 let inMemoryArticles = []
 
 const ALLOWED_WRITE_FIELDS = [
-    'title', 'slug', 'excerpt', 'content', 'category', 'coverImage',
+    'title', 'slug', 'excerpt', 'content', 'category', 'coverImage', 'thumbnailImage',
     'readTime', 'author', 'published', 'status', 'publishedAt', 'tags', 'attachments'
 ]
 
@@ -124,6 +125,9 @@ export const createArticleService = async (data) => {
         : clean.content.trim().slice(0, 150) + '...'
 
     if (getDBStatus()) {
+        if (clean.thumbnailImage?.publicId) {
+            await verifyReferencedPublicIdsExist([clean.thumbnailImage.publicId])
+        }
         const slug = await ensureUniqueSlug(Article, baseSlug)
         return await Article.create({
             ...clean,
@@ -157,6 +161,9 @@ export const createArticleService = async (data) => {
 export const updateArticleService = async (idOrSlug, data) => {
     const updateData = pickAllowed(data)
     if (getDBStatus()) {
+        if (updateData.thumbnailImage?.publicId) {
+            await verifyReferencedPublicIdsExist([updateData.thumbnailImage.publicId])
+        }
         const existing = await Article.findOne(buildFilter(idOrSlug))
         if (!existing) {
             const error = new Error('Article not found')

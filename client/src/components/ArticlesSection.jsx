@@ -5,6 +5,7 @@ import { ArrowUpRight, Clock, Eye, Calendar } from 'lucide-react'
 import { useLang } from '../i18n/LanguageContext'
 import { t } from '../i18n/translations'
 import { formatCompactDateTime } from '../utils/date'
+import CloudImage from './media/CloudImage'
 
 export default function ArticlesSection({ articles = [] }) {
   const { lang, isRTL } = useLang()
@@ -44,10 +45,16 @@ export default function ArticlesSection({ articles = [] }) {
               <div className="space-y-4">
                 {/* Cover thumbnail */}
                 <div className="aspect-[16/10] w-full rounded-xl overflow-hidden bg-[#222936] relative">
-                  <img
-                    src={art.coverImage}
-                    alt={art.title}
-                    loading="lazy"
+                  <CloudImage
+                    publicId={art.thumbnailImage?.publicId}
+                    fallbackUrl={art.coverImage}
+                    preset="card"
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    width={art.thumbnailImage?.width}
+                    height={art.thumbnailImage?.height}
+                    alt={art.thumbnailImage?.alt || art.title}
+                    altAr={art.thumbnailImage?.altAr || art.title}
+                    wrapperClassName="w-full h-full relative overflow-hidden bg-[#2a3344]"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute top-2.5 start-2.5">

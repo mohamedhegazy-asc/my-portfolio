@@ -1,16 +1,7 @@
-import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
-  UploadCloud,
-  FileSpreadsheet,
-  FileText,
-  Image as ImageIcon,
-  File,
-  Trash2,
-  Edit3,
-  Copy,
-  Eye,
-  X,
-  Check
+  UploadCloud, FileSpreadsheet, FileText, Presentation,
+  Image as ImageIcon, File, Trash2, Edit3, Copy, Eye, X, Check, AlertTriangle
 } from 'lucide-react'
 import DataTable from '../components/DataTable'
 import StatusBadge from '../components/StatusBadge'
@@ -18,19 +9,15 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import EmptyState from '../components/EmptyState'
 import { useToast } from '../components/Toast'
 import {
-  fetchAdminAssets,
-  uploadBlobDirect,
-  registerAdminAsset,
-  updateAdminAsset,
-  deleteAdminAsset
+  fetchAdminAssetConfig, fetchAdminAssets, uploadBlobDirect,
+  registerAdminAsset, updateAdminAsset, deleteAdminAsset
 } from '../../services/api'
 import { useLang } from '../../i18n/LanguageContext'
 import { t } from '../../i18n/translations'
+import { AssetCard } from '../../components/viewers/AttachmentsSection'
 
-const ExcelViewer = lazy(() => import('../../components/viewers/ExcelViewer'))
-
-const ALLOWED_EXTS = new Set(['xlsx', 'xls', 'csv', 'pdf', 'png', 'jpg', 'jpeg', 'webp'])
-const MAX_SIZE = 15 * 1024 * 1024
+const DEFAULT_EXTS = ['xlsx', 'xls', 'csv', 'docx', 'doc', 'pptx', 'ppt', 'pdf', 'png', 'jpg', 'jpeg', 'webp']
+const KIND_OPTIONS = ['', 'xlsx', 'xls', 'csv', 'docx', 'doc', 'pptx', 'ppt', 'pdf', 'image']
 
 function formatSize(bytes = 0) {
   if (!bytes) return '0 B'
@@ -40,20 +27,24 @@ function formatSize(bytes = 0) {
 }
 
 function KindIcon({ kind }) {
-  if (['xlsx', 'xls', 'csv'].includes(kind)) return <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-  if (kind === 'pdf') return <FileText className="w-4 h-4 text-red-500" />
-  if (kind === 'image') return <ImageIcon className="w-4 h-4 text-sky-600" />
-  return <File className="w-4 h-4 text-gray-500" />
+  if (['xlsx', 'xls', 'csv'].includes(kind)) return <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
+  if (['docx', 'doc'].includes(kind)) return <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+  if (['pptx', 'ppt'].includes(kind)) return <Presentation className="w-4 h-4 text-orange-500 shrink-0" />
+  if (kind === 'pdf') return <FileText className="w-4 h-4 text-red-500 shrink-0" />
+  if (kind === 'image') return <ImageIcon className="w-4 h-4 text-sky-600 shrink-0" />
+  return <File className="w-4 h-4 text-gray-500 shrink-0" />
 }
 
 export default function Files({ onAssetsChange }) {
   const { lang, isRTL } = useLang()
   const { addToast } = useToast()
 
+  const [config, setConfig] = useState({ maxUploadMb: 15, maxUploadBytes: 15 * 1024 * 1024, allowedExtensions: DEFAULT_EXTS })
   const [assets, setAssets] = useState([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [kindFilter, setKindFilter] = useState('')
   const [dragActive, setDragActive] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(null)
   const [editingId, setEditingId] = useState(null)
@@ -61,10 +52,16 @@ export default function Files({ onAssetsChange }) {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [previewAsset, setPreviewAsset] = useState(null)
 
-  const loadAssets = useCallback(async (p = page) => {
+  useEffect(() => {
+    fetchAdminAssetConfig()
+      .then((cfg) => { if (cfg) setConfig(cfg) })
+      .catch(() => {})
+  }, [])
+
+  const loadAssets = useCallback(async (p = page, kind = kindFilter) => {
     setLoading(true)
     try {
-      const res = await fetchAdminAssets({ page: p, limit: 15 })
+      const res = await fetchAdminAssets({ page: p, limit: 15, kind })
       setAssets(res.data || [])
       setTotalPages(res.totalPages || 1)
       onAssetsChange?.(res.data || [])
@@ -73,23 +70,24 @@ export default function Files({ onAssetsChange }) {
     } finally {
       setLoading(false)
     }
-  }, [page, addToast, onAssetsChange])
+  }, [page, kindFilter, addToast, onAssetsChange])
 
   useEffect(() => {
-    loadAssets(page)
-  }, [page, loadAssets])
+    loadAssets(page, kindFilter)
+  }, [page, kindFilter, loadAssets])
 
   const handleFiles = async (fileList) => {
     const file = fileList?.[0]
     if (!file) return
 
+    const allowedSet = new Set(config.allowedExtensions || DEFAULT_EXTS)
     const ext = (file.name.split('.').pop() || '').toLowerCase()
-    if (!ALLOWED_EXTS.has(ext)) {
+    if (!allowedSet.has(ext)) {
       addToast(`.${ext} is not allowed`, 'error')
       return
     }
-    if (file.size > MAX_SIZE) {
-      addToast('File exceeds 15 MB limit', 'error')
+    if (file.size > config.maxUploadBytes) {
+      addToast(`File exceeds ${config.maxUploadMb} MB limit`, 'error')
       return
     }
 
@@ -110,7 +108,7 @@ export default function Files({ onAssetsChange }) {
 
       addToast(isRTL ? 'تم رفع الملف بنجاح' : 'File uploaded successfully')
       setUploadProgress(null)
-      loadAssets(1)
+      loadAssets(1, kindFilter)
     } catch (err) {
       setUploadProgress(null)
       addToast(err.message, 'error')
@@ -165,7 +163,14 @@ export default function Files({ onAssetsChange }) {
         <div className="flex items-center gap-2.5 min-w-0">
           <KindIcon kind={row.kind} />
           <div className="min-w-0">
-            <p className="font-semibold text-[#222936] truncate max-w-[200px]" dir="auto">{row.title}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="font-semibold text-[#222936] truncate max-w-[180px]" dir="auto">{row.title}</p>
+              {(row.isLegacy || ['doc', 'xls', 'ppt'].includes(row.kind)) && (
+                <span title={t(lang, 'viewer.legacyRiskWarning')} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">
+                  <AlertTriangle className="w-2.5 h-2.5" /> Legacy
+                </span>
+              )}
+            </div>
             <p className="text-[10px] text-gray-400 truncate max-w-[200px]">{row.originalName}</p>
           </div>
         </div>
@@ -176,11 +181,7 @@ export default function Files({ onAssetsChange }) {
       key: 'status',
       header: isRTL ? 'الحالة' : 'Status',
       render: (row) => editingId === row._id ? (
-        <select
-          value={editDraft.status}
-          onChange={(e) => setEditDraft({ ...editDraft, status: e.target.value })}
-          className="px-2 py-1 border rounded-lg text-xs"
-        >
+        <select value={editDraft.status} onChange={(e) => setEditDraft({ ...editDraft, status: e.target.value })} className="px-2 py-1 border rounded-lg text-xs">
           <option value="public">public</option>
           <option value="private">private</option>
           <option value="draft">draft</option>
@@ -199,39 +200,17 @@ export default function Files({ onAssetsChange }) {
               <Check className="w-3.5 h-3.5" />
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={() => { setEditingId(row._id); setEditDraft({ title: row.title, status: row.status }) }}
-              className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 cursor-pointer"
-              title="Edit"
-            >
+            <button type="button" onClick={() => { setEditingId(row._id); setEditDraft({ title: row.title, status: row.status }) }} className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 cursor-pointer" title="Edit">
               <Edit3 className="w-3.5 h-3.5" />
             </button>
           )}
-          {['xlsx', 'xls', 'csv'].includes(row.kind) && (
-            <button
-              type="button"
-              onClick={() => setPreviewAsset(row)}
-              className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 cursor-pointer"
-              title={t(lang, 'adminP5.preview')}
-            >
-              <Eye className="w-3.5 h-3.5" />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => copyEmbedSnippet(row)}
-            className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 cursor-pointer"
-            title={t(lang, 'adminP5.copySnippet')}
-          >
+          <button type="button" onClick={() => setPreviewAsset(row)} className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 cursor-pointer" title={t(lang, 'adminP5.preview')}>
+            <Eye className="w-3.5 h-3.5" />
+          </button>
+          <button type="button" onClick={() => copyEmbedSnippet(row)} className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 cursor-pointer" title={t(lang, 'adminP5.copySnippet')}>
             <Copy className="w-3.5 h-3.5" />
           </button>
-          <button
-            type="button"
-            onClick={() => setConfirmDelete(row)}
-            className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 cursor-pointer"
-            title="Delete"
-          >
+          <button type="button" onClick={() => setConfirmDelete(row)} className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 cursor-pointer" title="Delete">
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -239,9 +218,10 @@ export default function Files({ onAssetsChange }) {
     }
   ]
 
+  const acceptAttr = (config.allowedExtensions || DEFAULT_EXTS).map((e) => `.${e}`).join(',')
+
   return (
     <div className="space-y-6">
-      {/* Drag & Drop Uploader */}
       <label
         onDragOver={(e) => { e.preventDefault(); setDragActive(true) }}
         onDragLeave={() => setDragActive(false)}
@@ -250,10 +230,12 @@ export default function Files({ onAssetsChange }) {
           dragActive ? 'border-[#222936] bg-[#E0F6C4]/40' : 'border-gray-300 bg-white hover:border-[#374159]'
         }`}
       >
-        <input type="file" className="hidden" onChange={(e) => handleFiles(e.target.files)} />
+        <input type="file" accept={acceptAttr} className="hidden" onChange={(e) => handleFiles(e.target.files)} />
         <UploadCloud className="w-9 h-9 text-[#374159] mx-auto mb-2" />
         <p className="text-sm font-bold text-[#222936]">{t(lang, 'adminP5.uploadDrop')}</p>
-        <p className="text-xs text-gray-500 mt-1">{t(lang, 'adminP5.uploadHint')}</p>
+        <p className="text-xs text-gray-500 mt-1">
+          {t(lang, 'adminP5.uploadHint')} ({config.maxUploadMb} MB max)
+        </p>
         {uploadProgress !== null && (
           <div className="max-w-xs mx-auto mt-4 h-2 bg-gray-200 rounded-full overflow-hidden">
             <div className="h-full bg-[#222936] transition-all" style={{ width: `${uploadProgress}%` }} />
@@ -261,7 +243,20 @@ export default function Files({ onAssetsChange }) {
         )}
       </label>
 
-      {/* Assets Table */}
+      <div className="flex items-center justify-end">
+        <select
+          value={kindFilter}
+          onChange={(e) => { setKindFilter(e.target.value); setPage(1) }}
+          className="px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-[#222936]"
+        >
+          {KIND_OPTIONS.map((k) => (
+            <option key={k || 'all'} value={k}>
+              {k ? k.toUpperCase() : (isRTL ? 'كل الأنواع' : 'All Types')}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <DataTable
         columns={columns}
         rows={assets}
@@ -272,21 +267,14 @@ export default function Files({ onAssetsChange }) {
         emptyState={<EmptyState title={isRTL ? 'لا توجد ملفات مرفوعة' : 'No files uploaded yet'} />}
       />
 
-      {/* Live ExcelViewer Preview Modal */}
       {previewAsset && (
         <div className="fixed inset-0 z-50 bg-black/70 p-4 sm:p-8 flex items-center justify-center" onClick={() => setPreviewAsset(null)}>
           <div className="w-full max-w-5xl max-h-[90vh] overflow-auto relative" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={() => setPreviewAsset(null)}
-              className="mb-2 ms-auto flex items-center gap-1 px-3 py-1.5 rounded-full bg-white text-[#222936] text-xs font-bold cursor-pointer"
-            >
+            <button type="button" onClick={() => setPreviewAsset(null)} className="mb-2 ms-auto flex items-center gap-1 px-3 py-1.5 rounded-full bg-white text-[#222936] text-xs font-bold cursor-pointer">
               <X className="w-4 h-4" />
               <span>{t(lang, 'viewer.closePreview')}</span>
             </button>
-            <Suspense fallback={<div className="h-64 bg-[#222936] rounded-2xl animate-pulse" />}>
-              <ExcelViewer asset={previewAsset} />
-            </Suspense>
+            <AssetCard asset={previewAsset} />
           </div>
         </div>
       )}

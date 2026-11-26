@@ -630,6 +630,13 @@ export const starMessage = async (id, isStarred = true) => {
 // ─────────────────────────────────────────────────────────────
 // Admin Assets / Files APIs (P2 + P5)
 // ─────────────────────────────────────────────────────────────
+export const fetchAdminAssetConfig = async () => {
+  const res = await adminFetch(`${API_BASE}/admin/assets/config`)
+  const json = await res.json()
+  if (!res.ok || !json.success) throw new Error(json.message || 'Failed to fetch upload config')
+  return json.data
+}
+
 export const fetchAdminAssets = async ({ page = 1, limit = 20, status = '', kind = '', q = '' } = {}) => {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) })
   if (status) params.append('status', status)
@@ -683,5 +690,122 @@ export const uploadBlobDirect = async (file, onProgress) => {
       }
     }
   })
+}
+
+// ─────────────────────────────────────────────────────────────
+// Admin Cloudinary Image APIs (P3 + P6)
+// ─────────────────────────────────────────────────────────────
+export const signCloudinaryImage = async (purpose = 'thumbnail') => {
+  const res = await adminFetch(`${API_BASE}/admin/images/sign`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ purpose })
+  })
+  const json = await res.json()
+  if (!res.ok || !json.success) throw new Error(json.message || 'Failed to sign image upload')
+  return json.data
+}
+
+export const registerAdminImage = async (payload) => {
+  const res = await adminFetch(`${API_BASE}/admin/images`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+  const json = await res.json()
+  if (!res.ok || !json.success) throw new Error(json.message || 'Failed to verify and register image')
+  return json.data
+}
+
+export const uploadToCloudinarySigned = async (
+  file,
+  { purpose = 'thumbnail', alt = '', altAr = '', onProgress } = {}
+) => {
+  const signed = await signCloudinaryImage(purpose)
+
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('api_key', signed.apiKey)
+  formData.append('timestamp', String(signed.timestamp))
+  formData.append('signature', signed.signature)
+  formData.append('folder', signed.folder)
+
+  const cldRes = await new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `https://api.cloudinary.com/v1_1/${signed.cloudName}/image/upload`)
+    xhr.upload.onprogress = (e) => {
+      if (onProgress && e.lengthComputable && e.total > 0) {
+        onProgress(Math.min(90, Math.round((e.loaded / e.total) * 90)))
+      }
+    }
+    xhr.onload = () => {
+      try {
+        const data = JSON.parse(xhr.responseText || '{}')
+        if (xhr.status >= 200 && xhr.status < 300 && data.public_id) {
+          resolve(data)
+        } else {
+          reject(new Error(data?.error?.message || `Cloudinary upload failed (${xhr.status})`))
+        }
+      } catch {
+        reject(new Error('Invalid response from Cloudinary'))
+      }
+    }
+    xhr.onerror = () => reject(new Error('Network error uploading to Cloudinary'))
+    xhr.send(formData)
+  })
+
+  if (onProgress) onProgress(95)
+
+  const registered = await registerAdminImage({
+    publicId: cldRes.public_id,
+    purpose,
+    alt: alt || '',
+    altAr: altAr || ''
+  })
+
+  if (onProgress) onProgress(100)
+  return registered
+}
+
+export const fetchAdminImages = async ({ page = 1, limit = 12, purpose = '', q = '' } = {}) => {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) })
+  if (purpose) params.append('purpose', purpose)
+  if (q) params.append('q', q)
+  const res = await adminFetch(`${API_BASE}/admin/images?${params.toString()}`)
+  const json = await res.json()
+  if (!res.ok || !json.success) throw new Error(json.message || 'Failed to fetch images')
+  return json
+}
+
+export const updateAdminImage = async (id, payload) => {
+  const res = await adminFetch(`${API_BASE}/admin/images/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+  const json = await res.json()
+  if (!res.ok || !json.success) throw new Error(json.message || 'Failed to update image')
+  return json.data
+}
+
+export const fetchAdminImageUsage = async (id) => {
+  const res = await adminFetch(`${API_BASE}/admin/images/${id}/usage`)
+  const json = await res.json()
+  if (!res.ok || !json.success) throw new Error(json.message || 'Failed to check image usage')
+  return json.data
+}
+
+export const deleteAdminImage = async (id) => {
+  const res = await adminFetch(`${API_BASE}/admin/images/${id}`, {
+    method: 'DELETE'
+  })
+  const json = await res.json()
+  if (!res.ok || !json.success) {
+    const err = new Error(json.message || 'Failed to delete image')
+    err.status = res.status
+    err.usage = json.usage
+    throw err
+  }
+  return json.data
 }
 

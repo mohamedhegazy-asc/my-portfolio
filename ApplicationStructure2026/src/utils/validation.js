@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MAX_UPLOAD_BYTES } from '../../config/config.service.js'
 
 const objectIdStr = z.string().regex(/^[a-fA-F0-9]{24}$/, 'Invalid ObjectId')
 
@@ -45,6 +46,24 @@ export const validateBody = (schema) => (req, res, next) => {
 }
 
 // ─── Project Schemas (strict — rejects unknown fields & blocks clicks) ──────
+const thumbnailImageSchema = z.object({
+    publicId: z.string().trim().min(1).max(300),
+    width: z.number().int().min(1).max(20000).optional(),
+    height: z.number().int().min(1).max(20000).optional(),
+    alt: z.string().trim().max(300).optional(),
+    altAr: z.string().trim().max(300).optional(),
+}).strict()
+
+const galleryItemSchema = z.object({
+    publicId: z.string().trim().min(1).max(300),
+    width: z.number().int().min(1).max(20000).optional(),
+    height: z.number().int().min(1).max(20000).optional(),
+    alt: z.string().trim().max(300).optional(),
+    altAr: z.string().trim().max(300).optional(),
+    caption: z.string().trim().max(500).optional(),
+    captionAr: z.string().trim().max(500).optional(),
+}).strict()
+
 export const projectCreateSchema = z.object({
     title: z.string().trim().min(1).max(200),
     slug: z.string().trim().max(220).optional(),
@@ -54,7 +73,9 @@ export const projectCreateSchema = z.object({
     type: z.string().trim().max(80).optional(),
     client: z.string().trim().max(120).optional(),
     thumbnail: z.string().trim().max(1000).optional(),
+    thumbnailImage: thumbnailImageSchema.optional(),
     images: z.array(z.string().trim().max(1000)).max(20).optional(),
+    gallery: z.array(galleryItemSchema).max(20).optional(),
     liveUrl: z.string().trim().max(1000).optional(),
     repoUrl: z.string().trim().max(1000).optional(),
     order: z.number().int().min(0).max(10000).optional(),
@@ -62,7 +83,7 @@ export const projectCreateSchema = z.object({
     published: z.boolean().optional(),
     status: z.enum(['public', 'private', 'draft']).optional(),
     publishedAt: z.union([z.string().max(60), z.date(), z.null()]).optional(),
-    description: z.string().max(50000).optional(),
+    description: z.string().max(20000).optional(),
     tags: z.array(z.string().trim().max(50)).max(20).optional(),
     tech: z.array(z.string().trim().max(50)).max(30).optional(),
     attachments: z.array(objectIdStr).max(20).optional(),
@@ -78,6 +99,7 @@ export const articleCreateSchema = z.object({
     content: z.string().trim().min(1).max(200000),
     category: z.string().trim().max(80).optional(),
     coverImage: z.string().trim().max(1000).optional(),
+    thumbnailImage: thumbnailImageSchema.optional(),
     readTime: z.string().trim().max(50).optional(),
     author: z.string().trim().max(120).optional(),
     published: z.boolean().optional(),
@@ -152,7 +174,7 @@ export const assetCreateSchema = z.object({
     description: z.string().trim().max(1000).optional(),
     originalName: z.string().trim().min(1).max(260),
     mimeType: z.string().trim().min(1).max(150),
-    size: z.number().int().min(1).max(15 * 1024 * 1024),
+    size: z.number().int().min(1).max(MAX_UPLOAD_BYTES),
     url: z.string().trim().url().max(1500),
     pathname: z.string().trim().max(500).optional(),
     status: z.enum(['public', 'private', 'draft']).optional(),
@@ -164,4 +186,22 @@ export const assetUpdateSchema = z.object({
     title: z.string().trim().min(1).max(200).optional(),
     description: z.string().trim().max(1000).optional(),
     status: z.enum(['public', 'private', 'draft']).optional(),
+}).strict()
+
+// ─── Cloudinary Image Schemas ────────────────────────────────────────────────
+export const imageSignSchema = z.object({
+    purpose: z.enum(['thumbnail', 'inline', 'gallery']),
+}).strict()
+
+export const imageRegisterSchema = z.object({
+    publicId: z.string().trim().min(3).max(300),
+    purpose: z.enum(['thumbnail', 'inline', 'gallery']),
+    alt: z.string().trim().max(300).optional(),
+    altAr: z.string().trim().max(300).optional(),
+}).strict()
+
+export const imageUpdateSchema = z.object({
+    purpose: z.enum(['thumbnail', 'inline', 'gallery']).optional(),
+    alt: z.string().trim().max(300).optional(),
+    altAr: z.string().trim().max(300).optional(),
 }).strict()

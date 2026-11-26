@@ -5,10 +5,18 @@ const assetSchema = new mongoose.Schema({
     description: { type: String, default: '', trim: true, maxlength: 1000 },
     kind: {
         type: String,
-        enum: ['xlsx', 'xls', 'csv', 'pdf', 'image', 'other'],
+        enum: ['xlsx', 'xls', 'csv', 'docx', 'doc', 'pptx', 'ppt', 'pdf', 'image', 'other'],
         required: true,
         default: 'other'
     },
+    previewMode: {
+        type: String,
+        enum: ['excel', 'word', 'slides', 'pdf', 'image', 'download-only'],
+        default: 'download-only'
+    },
+    isLegacy: { type: Boolean, default: false },
+    verifiedSignature: { type: Boolean, default: false },
+    entryCount: { type: Number, default: undefined },
     originalName: { type: String, required: true },
     mimeType: { type: String, required: true },
     size: { type: Number, required: true, min: 1 },

@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Plus, Edit3, Trash2, Save, X, Upload, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Plus, Edit3, Trash2, Save, X, CheckCircle2, AlertCircle } from 'lucide-react'
 import DataTable from '../components/DataTable'
 import StatusBadge from '../components/StatusBadge'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EmptyState from '../components/EmptyState'
 import FormField from '../components/FormField'
 import MarkdownEditor from '../components/MarkdownEditor'
+import ThumbnailUploader from '../components/ThumbnailUploader'
+import AttachmentManager from '../components/AttachmentManager'
 import { useToast } from '../components/Toast'
-import { createArticle, updateArticle, deleteArticle, uploadBlobDirect } from '../../services/api'
+import { createArticle, updateArticle, deleteArticle } from '../../services/api'
 import { useLang } from '../../i18n/LanguageContext'
 import { t } from '../../i18n/translations'
 
@@ -26,12 +28,13 @@ const EMPTY_ARTICLE = {
   excerpt: '',
   content: '',
   coverImage: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80',
+  thumbnailImage: undefined,
   status: 'public',
   publishedAt: '',
   attachments: []
 }
 
-export default function Articles({ articles = [], setArticles, assets = [], loading, onRefresh }) {
+export default function Articles({ articles = [], setArticles, assets = [], setAssets, loading, onRefresh }) {
   const { lang, isRTL } = useLang()
   const { addToast } = useToast()
 
@@ -39,8 +42,13 @@ export default function Articles({ articles = [], setArticles, assets = [], load
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(EMPTY_ARTICLE)
   const [dirty, setDirty] = useState(false)
+  const [uploadingCount, setUploadingCount] = useState(0)
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
+
+  const handleUploadingChange = useCallback((isUp) => {
+    setUploadingCount((c) => Math.max(0, c + (isUp ? 1 : -1)))
+  }, [])
 
   const slugTaken = Boolean(
     form.slug &&
@@ -52,20 +60,20 @@ export default function Articles({ articles = [], setArticles, assets = [], load
     setDirty(true)
   }
 
-  // Warn before leaving browser tab with unsaved changes
+  // Warn before leaving browser tab with unsaved changes or active uploads
   useEffect(() => {
-    if (!formOpen || !dirty) return
+    if (!formOpen || (!dirty && uploadingCount === 0)) return
     const handleUnload = (e) => {
       e.preventDefault()
       e.returnValue = ''
     }
     window.addEventListener('beforeunload', handleUnload)
     return () => window.removeEventListener('beforeunload', handleUnload)
-  }, [formOpen, dirty])
+  }, [formOpen, dirty, uploadingCount])
 
-  // Autosave draft to server every 30s when editing or dirty with title & content
+  // Autosave draft to server every 30s when editing or dirty with title & content (paused during uploads)
   useEffect(() => {
-    if (!formOpen || !dirty || !form.title.trim() || !form.content.trim()) return
+    if (!formOpen || !dirty || uploadingCount > 0 || !form.title.trim() || !form.content.trim()) return
     const timer = setTimeout(async () => {
       try {
         if (editing?._id) {
@@ -110,6 +118,7 @@ export default function Articles({ articles = [], setArticles, assets = [], load
       excerpt: a.excerpt || '',
       content: a.content || '',
       coverImage: a.coverImage || '',
+      thumbnailImage: a.thumbnailImage?.publicId ? a.thumbnailImage : undefined,
       status: a.status || (a.published === false ? 'private' : 'public'),
       publishedAt: a.publishedAt ? String(a.publishedAt).slice(0, 16) : '',
       attachments: (a.attachments || []).map((att) => (typeof att === 'object' ? att._id : att))
@@ -264,7 +273,12 @@ export default function Articles({ articles = [], setArticles, assets = [], load
           </FormField>
 
           <FormField label={isRTL ? 'المحتوى (Markdown)' : 'Content (Markdown)'} required>
-            <MarkdownEditor value={form.content} onChange={(content) => updateForm({ content })} assets={assets} />
+            <MarkdownEditor
+              value={form.content}
+              onChange={(content) => updateForm({ content })}
+              assets={assets}
+              onUploadingChange={handleUploadingChange}
+            />
           </FormField>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -283,54 +297,28 @@ export default function Articles({ articles = [], setArticles, assets = [], load
             </FormField>
           </div>
 
-          <FormField label={isRTL ? 'صورة الغلاف' : 'Cover Image'}>
-            <div className="flex gap-2">
-              <input value={form.coverImage} onChange={(e) => updateForm({ coverImage: e.target.value })} className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm" dir="ltr" />
-              <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-xs font-semibold cursor-pointer">
-                <Upload className="w-3.5 h-3.5" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0]
-                    if (!file) return
-                    try {
-                      const blob = await uploadBlobDirect(file)
-                      updateForm({ coverImage: blob.url })
-                      addToast(isRTL ? 'تم رفع الصورة' : 'Cover uploaded')
-                    } catch (err) {
-                      addToast(err.message, 'error')
-                    }
-                  }}
-                />
-              </label>
-            </div>
+          <FormField label={isRTL ? 'الصورة المصغرة / الغلاف (16:9)' : 'Thumbnail / Cover Image (16:9)'}>
+            <ThumbnailUploader
+              thumbnailImage={form.thumbnailImage}
+              legacyUrl={form.coverImage}
+              onChange={({ thumbnailImage, legacyUrl }) =>
+                updateForm({ thumbnailImage, coverImage: legacyUrl })
+              }
+              onUploadingChange={handleUploadingChange}
+            />
           </FormField>
 
-          {assets.length > 0 && (
-            <FormField label={t(lang, 'adminP5.attachments')}>
-              <div className="flex flex-wrap gap-2">
-                {assets.map((a) => {
-                  const active = form.attachments.includes(a._id)
-                  return (
-                    <button
-                      key={a._id}
-                      type="button"
-                      onClick={() => updateForm({
-                        attachments: active ? form.attachments.filter((id) => id !== a._id) : [...form.attachments, a._id]
-                      })}
-                      className={`px-3 py-1 rounded-full text-xs font-medium border cursor-pointer ${
-                        active ? 'bg-[#222936] text-[#B9D895] border-[#222936]' : 'bg-gray-50 text-gray-600 border-gray-200'
-                      }`}
-                    >
-                      {a.title} ({a.kind})
-                    </button>
-                  )
-                })}
-              </div>
-            </FormField>
-          )}
+          <FormField label={t(lang, 'adminP5.attachments')}>
+            <AttachmentManager
+              attachments={form.attachments}
+              onChange={(next) => updateForm({ attachments: next })}
+              assets={assets}
+              onAssetCreated={(created) => setAssets?.((prev) => [created, ...prev])}
+              onAssetUpdated={(updated) =>
+                setAssets?.((prev) => prev.map((a) => (a._id === updated._id ? updated : a)))
+              }
+            />
+          </FormField>
 
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setFormOpen(false)} className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-semibold cursor-pointer">

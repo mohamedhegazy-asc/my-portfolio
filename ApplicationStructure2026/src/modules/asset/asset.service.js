@@ -3,32 +3,28 @@ import mongoose from 'mongoose'
 import { head, del } from '@vercel/blob'
 import { Asset } from '../../DB/model/asset.model.js'
 import { getDBStatus } from '../../DB/connection.db.js'
-import { NODE_ENV } from '../../../config/config.service.js'
+import { NODE_ENV, MAX_UPLOAD_MB, MAX_UPLOAD_BYTES } from '../../../config/config.service.js'
+import {
+    FILE_TYPE_REGISTRY,
+    FORBIDDEN_EXTENSIONS,
+    ALLOWED_EXTENSIONS,
+    ALLOWED_MIME_TYPES,
+    ASSET_KINDS,
+    getPublicUploadConfig
+} from './asset.config.js'
+import { inspectFileBuffer } from './fileInspector.js'
 
-export const MAX_ASSET_SIZE_BYTES = 15 * 1024 * 1024 // 15 MB
-
-export const FORBIDDEN_EXTENSIONS = new Set([
-    'xlsm', 'xlsb', 'xltm', 'xlam',
-    'exe', 'bat', 'cmd', 'sh', 'ps1', 'msi', 'dll',
-    'js', 'mjs', 'cjs', 'ts', 'jsx', 'tsx',
-    'html', 'htm', 'svg', 'php', 'py', 'rb'
-])
-
-export const EXTENSION_MIME_MAP = {
-    xlsx: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/octet-stream'],
-    xls: ['application/vnd.ms-excel', 'application/octet-stream'],
-    csv: ['text/csv', 'application/csv', 'text/plain', 'application/vnd.ms-excel'],
-    pdf: ['application/pdf'],
-    png: ['image/png'],
-    jpg: ['image/jpeg'],
-    jpeg: ['image/jpeg'],
-    webp: ['image/webp']
+export {
+    FILE_TYPE_REGISTRY,
+    FORBIDDEN_EXTENSIONS,
+    ALLOWED_EXTENSIONS,
+    ALLOWED_MIME_TYPES,
+    ASSET_KINDS,
+    MAX_UPLOAD_MB,
+    MAX_UPLOAD_BYTES as MAX_ASSET_SIZE_BYTES,
+    getPublicUploadConfig
 }
 
-export const ALLOWED_EXTENSIONS = Object.keys(EXTENSION_MIME_MAP)
-export const ALLOWED_MIME_TYPES = Array.from(new Set(Object.values(EXTENSION_MIME_MAP).flat()))
-
-// In-memory store for development fallback only
 let inMemoryAssets = []
 
 export const getExtension = (filename = '') => {
@@ -37,45 +33,50 @@ export const getExtension = (filename = '') => {
     return parts.length > 1 ? parts.pop().toLowerCase() : ''
 }
 
-export const resolveAssetKind = (ext) => {
-    if (ext === 'xlsx') return 'xlsx'
-    if (ext === 'xls') return 'xls'
-    if (ext === 'csv') return 'csv'
-    if (ext === 'pdf') return 'pdf'
-    if (['png', 'jpg', 'jpeg', 'webp'].includes(ext)) return 'image'
-    return 'other'
+export const resolveAssetMetaByExt = (ext) => {
+    const entry = FILE_TYPE_REGISTRY[ext]
+    if (!entry) return { kind: 'other', previewMode: 'download-only', isLegacy: false }
+    return { kind: entry.kind, previewMode: entry.previewMode, isLegacy: entry.isLegacy }
 }
 
 export const validateAssetMetadata = ({ originalName, mimeType, size }) => {
     const ext = getExtension(originalName)
-    if (!ext || FORBIDDEN_EXTENSIONS.has(ext) || !EXTENSION_MIME_MAP[ext]) {
+    const entry = FILE_TYPE_REGISTRY[ext]
+    if (!ext || FORBIDDEN_EXTENSIONS.has(ext) || !entry) {
         const err = new Error(`File type '.${ext || 'unknown'}' is not allowed.`)
         err.cause = { status: 400 }
         throw err
     }
 
     const numericSize = Number(size)
-    if (!Number.isFinite(numericSize) || numericSize <= 0 || numericSize > MAX_ASSET_SIZE_BYTES) {
-        const err = new Error(`File size must be between 1 byte and ${MAX_ASSET_SIZE_BYTES / (1024 * 1024)} MB.`)
+    if (!Number.isFinite(numericSize) || numericSize <= 0 || numericSize > MAX_UPLOAD_BYTES) {
+        const err = new Error(`File size must be between 1 byte and ${MAX_UPLOAD_MB} MB.`)
         err.cause = { status: 400 }
         throw err
     }
 
     const normalizedMime = String(mimeType || '').split(';')[0].trim().toLowerCase()
-    const allowedMimes = EXTENSION_MIME_MAP[ext]
-    if (!allowedMimes.includes(normalizedMime)) {
+    if (!entry.mimes.includes(normalizedMime)) {
         const err = new Error(`MIME type '${normalizedMime || 'unknown'}' does not match '.${ext}'.`)
         err.cause = { status: 400 }
         throw err
     }
 
-    return { ext, kind: resolveAssetKind(ext), size: numericSize, mimeType: normalizedMime }
+    return {
+        ext,
+        kind: entry.kind,
+        previewMode: entry.previewMode,
+        isLegacy: entry.isLegacy,
+        size: numericSize,
+        mimeType: normalizedMime
+    }
 }
 
 /**
- * Verify blob exists on Vercel Blob and compute SHA-256 checksum when feasible.
+ * Verify blob exists on Vercel Blob, verify actual file signature & OOXML ZIP entries,
+ * and compute SHA-256 checksum.
  */
-export const verifyBlobAndChecksum = async (url, expectedSize) => {
+export const verifyBlobAndChecksum = async (url, expectedSize, ext) => {
     const hasBlobToken = Boolean(process.env.BLOB_READ_WRITE_TOKEN)
     let verifiedSize = expectedSize
     let verifiedPathname = ''
@@ -89,29 +90,40 @@ export const verifyBlobAndChecksum = async (url, expectedSize) => {
         }
         verifiedSize = blobMeta.size
         verifiedPathname = blobMeta.pathname || ''
-        if (verifiedSize > MAX_ASSET_SIZE_BYTES) {
-            const err = new Error('Uploaded blob exceeds 15 MB limit.')
+        if (verifiedSize > MAX_UPLOAD_BYTES) {
+            const err = new Error(`Uploaded blob exceeds ${MAX_UPLOAD_MB} MB limit.`)
             err.cause = { status: 400 }
             throw err
         }
     }
 
     let checksum = ''
-    try {
-        if (/^https:\/\//i.test(url)) {
-            const resp = await fetch(url)
-            if (resp.ok) {
-                const buf = Buffer.from(await resp.arrayBuffer())
-                if (buf.byteLength <= MAX_ASSET_SIZE_BYTES) {
-                    checksum = createHash('sha256').update(buf).digest('hex')
-                }
-            }
+    let verifiedSignature = false
+    let entryCount = undefined
+
+    if (/^https?:\/\//i.test(url)) {
+        let resp = null
+        try {
+            resp = await fetch(url)
+        } catch {
+            resp = null
         }
-    } catch {
-        // Non-fatal if remote fetch for checksum fails
+
+        if (resp && resp.ok) {
+            const buf = Buffer.from(await resp.arrayBuffer())
+            if (buf.byteLength > MAX_UPLOAD_BYTES) {
+                const err = new Error(`Downloaded file exceeds ${MAX_UPLOAD_MB} MB limit.`)
+                err.cause = { status: 400 }
+                throw err
+            }
+            const inspected = inspectFileBuffer(buf, ext)
+            verifiedSignature = inspected.verifiedSignature
+            entryCount = inspected.entryCount
+            checksum = createHash('sha256').update(buf).digest('hex')
+        }
     }
 
-    return { verifiedSize, verifiedPathname, checksum }
+    return { verifiedSize, verifiedPathname, checksum, verifiedSignature, entryCount }
 }
 
 export const getPublicAssetByIdService = async (id) => {
@@ -119,9 +131,7 @@ export const getPublicAssetByIdService = async (id) => {
         if (!mongoose.Types.ObjectId.isValid(id)) return null
         return await Asset.findOne({ _id: id, status: 'public' }).lean()
     }
-    if (NODE_ENV === 'production') {
-        throw new Error('Database connection unavailable')
-    }
+    if (NODE_ENV === 'production') throw new Error('Database connection unavailable')
     return inMemoryAssets.find(a => a._id === id && a.status === 'public') || null
 }
 
@@ -135,9 +145,7 @@ export const incrementAssetDownloadService = async (id) => {
         ).lean()
         return asset ? { url: asset.url, downloads: asset.downloads } : null
     }
-    if (NODE_ENV === 'production') {
-        throw new Error('Database connection unavailable')
-    }
+    if (NODE_ENV === 'production') throw new Error('Database connection unavailable')
     const found = inMemoryAssets.find(a => a._id === id && a.status === 'public')
     if (!found) return null
     found.downloads = (found.downloads || 0) + 1
@@ -154,9 +162,7 @@ export const incrementAssetViewService = async (id) => {
         ).lean()
         return asset ? { views: asset.views } : null
     }
-    if (NODE_ENV === 'production') {
-        throw new Error('Database connection unavailable')
-    }
+    if (NODE_ENV === 'production') throw new Error('Database connection unavailable')
     const found = inMemoryAssets.find(a => a._id === id && a.status === 'public')
     if (!found) return null
     found.views = (found.views || 0) + 1
@@ -168,14 +174,12 @@ export const getAdminAssetsService = async ({ page = 1, limit = 20, status, kind
     const limitNum = Math.min(50, Math.max(1, parseInt(limit) || 20))
     const skip = (pageNum - 1) * limitNum
 
+    const kindFilter = kind && ASSET_KINDS.includes(kind) ? kind : null
+
     if (getDBStatus()) {
         const query = {}
-        if (status && ['public', 'private', 'draft'].includes(status)) {
-            query.status = status
-        }
-        if (kind && ['xlsx', 'xls', 'csv', 'pdf', 'image', 'other'].includes(kind)) {
-            query.kind = kind
-        }
+        if (status && ['public', 'private', 'draft'].includes(status)) query.status = status
+        if (kindFilter) query.kind = kindFilter
         if (q && typeof q === 'string' && q.trim()) {
             const escaped = q.trim().slice(0, 100).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
             query.$or = [
@@ -189,38 +193,20 @@ export const getAdminAssetsService = async ({ page = 1, limit = 20, status, kind
             Asset.find(query).sort({ createdAt: -1 }).skip(skip).limit(limitNum).lean()
         ])
 
-        return {
-            data,
-            total,
-            page: pageNum,
-            limit: limitNum,
-            totalPages: Math.ceil(total / limitNum) || 1
-        }
+        return { data, total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) || 1 }
     }
 
-    if (NODE_ENV === 'production') {
-        throw new Error('Database connection unavailable')
-    }
+    if (NODE_ENV === 'production') throw new Error('Database connection unavailable')
 
     let list = [...inMemoryAssets]
-    if (status && ['public', 'private', 'draft'].includes(status)) {
-        list = list.filter(a => a.status === status)
-    }
-    if (kind && ['xlsx', 'xls', 'csv', 'pdf', 'image', 'other'].includes(kind)) {
-        list = list.filter(a => a.kind === kind)
-    }
+    if (status && ['public', 'private', 'draft'].includes(status)) list = list.filter(a => a.status === status)
+    if (kindFilter) list = list.filter(a => a.kind === kindFilter)
     if (q && typeof q === 'string' && q.trim()) {
         const needle = q.trim().toLowerCase()
         list = list.filter(a => a.title.toLowerCase().includes(needle) || a.originalName.toLowerCase().includes(needle))
     }
     const total = list.length
-    return {
-        data: list.slice(skip, skip + limitNum),
-        total,
-        page: pageNum,
-        limit: limitNum,
-        totalPages: Math.ceil(total / limitNum) || 1
-    }
+    return { data: list.slice(skip, skip + limitNum), total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) || 1 }
 }
 
 export const createAssetService = async (payload) => {
@@ -250,12 +236,16 @@ export const createAssetService = async (payload) => {
 
     const validStatus = ['public', 'private', 'draft'].includes(status) ? status : 'draft'
     const validated = validateAssetMetadata({ originalName, mimeType, size })
-    const blobInfo = await verifyBlobAndChecksum(url.trim(), validated.size)
+    const blobInfo = await verifyBlobAndChecksum(url.trim(), validated.size, validated.ext)
 
     const docData = {
         title: title.trim().slice(0, 200),
         description: typeof description === 'string' ? description.trim().slice(0, 1000) : '',
         kind: validated.kind,
+        previewMode: validated.previewMode,
+        isLegacy: validated.isLegacy,
+        verifiedSignature: blobInfo.verifiedSignature,
+        ...(blobInfo.entryCount !== undefined ? { entryCount: blobInfo.entryCount } : {}),
         originalName: String(originalName).trim(),
         mimeType: validated.mimeType,
         size: blobInfo.verifiedSize || validated.size,
@@ -266,12 +256,9 @@ export const createAssetService = async (payload) => {
         checksum: blobInfo.checksum || (typeof checksum === 'string' ? checksum.trim() : '')
     }
 
-    if (getDBStatus()) {
-        return await Asset.create(docData)
-    }
-    if (NODE_ENV === 'production') {
-        throw new Error('Database connection unavailable')
-    }
+    if (getDBStatus()) return await Asset.create(docData)
+    if (NODE_ENV === 'production') throw new Error('Database connection unavailable')
+
     const memAsset = {
         _id: new mongoose.Types.ObjectId().toString(),
         ...docData,
@@ -300,9 +287,8 @@ export const updateAssetService = async (id, payload) => {
         if (!mongoose.Types.ObjectId.isValid(id)) return null
         return await Asset.findByIdAndUpdate(id, { $set: update }, { new: true }).lean()
     }
-    if (NODE_ENV === 'production') {
-        throw new Error('Database connection unavailable')
-    }
+    if (NODE_ENV === 'production') throw new Error('Database connection unavailable')
+
     const idx = inMemoryAssets.findIndex(a => a._id === id)
     if (idx === -1) return null
     inMemoryAssets[idx] = { ...inMemoryAssets[idx], ...update, updatedAt: new Date().toISOString() }
@@ -322,9 +308,7 @@ export const deleteAssetService = async (id, deleteBlobFn = del) => {
         return true
     }
 
-    if (NODE_ENV === 'production') {
-        throw new Error('Database connection unavailable')
-    }
+    if (NODE_ENV === 'production') throw new Error('Database connection unavailable')
 
     const idx = inMemoryAssets.findIndex(a => a._id === id)
     if (idx === -1) return null

@@ -6,6 +6,9 @@ import { fetchProjectBySlug, fetchProjects } from '../services/api'
 import { useLang } from '../i18n/LanguageContext'
 import { t } from '../i18n/translations'
 import AttachmentsSection from '../components/viewers/AttachmentsSection'
+import { resolveGalleryItems } from '../utils/imageDisplay'
+import CloudImage from '../components/media/CloudImage'
+import Lightbox from '../components/media/Lightbox'
 import RichContent from '../components/content/RichContent'
 
 // GitHub SVG Icon
@@ -23,6 +26,7 @@ export default function ProjectDetailPage({ profile }) {
   const [project, setProject] = useState(null)
   const [allProjects, setAllProjects] = useState([])
   const [loading, setLoading] = useState(true)
+  const [lightboxIndex, setLightboxIndex] = useState(null)
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -204,29 +208,57 @@ export default function ProjectDetailPage({ profile }) {
           </div>
         )}
 
-        {/* 4. Gallery */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 mb-20"
-        >
-          {(project.images && project.images.length > 0 ? project.images : [project.thumbnail]).map((imgUrl, i) => (
-            <div
-              key={i}
-              className="rounded-[16px] bg-white/70 border border-[#222936]/15 shadow-sm p-4 sm:p-6 overflow-hidden flex items-center justify-center group hover:bg-white/90 transition-all"
-            >
-              <div className="w-full rounded-[10px] overflow-hidden shadow-md border border-[#222936]/10 bg-white">
-                <img
-                  src={imgUrl}
-                  alt={`${project.title} screenshot ${i + 1}`}
-                  loading="lazy"
-                  className="w-full h-auto object-cover group-hover:scale-102 transition-transform duration-500"
+        {/* 4. Gallery (1 col phone, 2 cols tablet, 3 cols desktop) */}
+        {(() => {
+          const galleryItems = resolveGalleryItems(project, lang)
+          return (
+            <>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 mb-20"
+              >
+                {galleryItems.map((item, i) => (
+                  <div
+                    key={i}
+                    className="rounded-[16px] bg-white/70 border border-[#222936]/15 shadow-sm p-4 sm:p-5 overflow-hidden flex flex-col items-center justify-center group hover:bg-white/90 transition-all"
+                  >
+                    <CloudImage
+                      publicId={item.publicId}
+                      fallbackUrl={item.src}
+                      preset="inline"
+                      sizes="(max-width: 767px) 100vw, (max-width: 1023px) 50vw, 33vw"
+                      width={item.width}
+                      height={item.height}
+                      alt={item.alt || `${project.title} screenshot ${i + 1}`}
+                      altAr={item.altAr || `${project.title} ${i + 1}`}
+                      priority={i === 0}
+                      onClick={!item.isPlaceholder ? () => setLightboxIndex(i) : undefined}
+                      wrapperClassName={`w-full rounded-[10px] overflow-hidden shadow-md border border-[#222936]/10 bg-white relative ${
+                        !item.isPlaceholder ? 'cursor-zoom-in' : ''
+                      }`}
+                      className="w-full h-auto object-cover group-hover:scale-102 transition-transform duration-500"
+                    />
+                    {(lang === 'ar' ? item.captionAr : item.caption) || item.caption ? (
+                      <p className="mt-2.5 text-xs text-[#222936]/75 text-center" dir="auto">
+                        {(lang === 'ar' ? item.captionAr : item.caption) || item.caption}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+              </motion.div>
+
+              {lightboxIndex !== null && (
+                <Lightbox
+                  items={galleryItems.filter((it) => !it.isPlaceholder)}
+                  initialIndex={lightboxIndex}
+                  onClose={() => setLightboxIndex(null)}
                 />
-              </div>
-            </div>
-          ))}
-        </motion.div>
+              )}
+            </>
+          )
+        })()}
 
         {/* 4.5 Rich Description (Markdown) */}
         {project.description && project.description.trim() && (

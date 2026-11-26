@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -16,6 +16,13 @@ import plaintext from 'highlight.js/lib/languages/plaintext'
 
 import CodeBlock from './CodeBlock'
 import { InlineAssetEmbed } from '../viewers/AttachmentsSection'
+import CloudImage from '../media/CloudImage'
+import Lightbox from '../media/Lightbox'
+import {
+  safeMarkdownUrlTransform,
+  parseCldImageUrl,
+  extractInlineImageGroups
+} from '../../utils/cldMarkdown'
 import { useLang } from '../../i18n/LanguageContext'
 import { t } from '../../i18n/translations'
 
@@ -132,6 +139,19 @@ function InlineCodePill({ children }) {
 export default function RichContent({ content = '', theme = 'dark' }) {
   const { lang } = useLang()
   const isLight = theme === 'light'
+  const [lightboxState, setLightboxState] = useState(null)
+
+  const imageGroups = useMemo(() => extractInlineImageGroups(content), [content])
+  let renderImageCounter = 0
+  const flatImageLocations = useMemo(() => {
+    const locs = []
+    for (let g = 0; g < imageGroups.length; g++) {
+      for (let idx = 0; idx < imageGroups[g].length; idx++) {
+        locs.push({ group: imageGroups[g], index: idx })
+      }
+    }
+    return locs
+  }, [imageGroups])
 
   const textColor = isLight ? 'text-[#222936]/90' : 'text-[#E0F6C4]/90'
   const headingColor = isLight ? 'text-[#222936]' : 'text-white'
@@ -140,6 +160,7 @@ export default function RichContent({ content = '', theme = 'dark' }) {
   return (
     <div className="rich-content space-y-2" dir="auto">
       <ReactMarkdown
+        urlTransform={safeMarkdownUrlTransform}
         remarkPlugins={[remarkGfm, remarkMath, remarkCodeExplanation]}
         rehypePlugins={[
           rehypeKatex,
@@ -281,21 +302,82 @@ export default function RichContent({ content = '', theme = 'dark' }) {
             }
             return <InlineCodePill>{children}</InlineCodePill>
           },
-          img: ({ src, alt }) => (
-            <figure className="my-6">
-              <img
-                src={src}
-                alt={alt || ''}
-                loading="lazy"
-                className="w-full rounded-xl border border-[#374159]/60 shadow-lg max-h-[480px] object-cover"
-              />
-              {alt && (
-                <figcaption className="text-center text-xs text-[#E0F6C4]/55 mt-2">
-                  {alt}
-                </figcaption>
-              )}
-            </figure>
-          ),
+          img: ({ src, alt, title }) => {
+            const loc = flatImageLocations[renderImageCounter++]
+            const openGalleryLightbox = () => {
+              if (loc) {
+                setLightboxState({ items: loc.group, index: loc.index })
+              } else if (src) {
+                const cld = parseCldImageUrl(src)
+                setLightboxState({
+                  items: [{ publicId: cld?.publicId || '', src, alt: alt || '', caption: title || '' }],
+                  index: 0
+                })
+              }
+            }
+
+            const cld = typeof src === 'string' ? parseCldImageUrl(src) : null
+            if (cld) {
+              const widthClass =
+                cld.widthPct === 50
+                  ? 'w-full md:w-1/2'
+                  : cld.widthPct === 75
+                    ? 'w-full md:w-3/4'
+                    : 'w-full'
+              const alignClass =
+                cld.align === 'start'
+                  ? 'me-auto'
+                  : cld.align === 'end'
+                    ? 'ms-auto'
+                    : 'mx-auto'
+              const caption = title || ''
+
+              return (
+                <figure className={`my-6 ${widthClass} ${alignClass}`}>
+                  <CloudImage
+                    publicId={cld.publicId}
+                    preset="inline"
+                    sizes={
+                      cld.widthPct === 50
+                        ? '(max-width: 767px) 100vw, 50vw'
+                        : cld.widthPct === 75
+                          ? '(max-width: 767px) 100vw, 75vw'
+                          : '(max-width: 767px) 100vw, 896px'
+                    }
+                    alt={alt || ''}
+                    onClick={openGalleryLightbox}
+                    style={{ aspectRatio: cld.aspectRatio }}
+                    wrapperClassName="w-full rounded-xl border border-[#374159]/60 shadow-lg overflow-hidden bg-[#1b2230] cursor-zoom-in"
+                    className="w-full h-full object-cover"
+                  />
+                  {caption && (
+                    <figcaption className={`text-center text-xs mt-2 ${isLight ? 'text-[#222936]/70' : 'text-[#E0F6C4]/55'}`}>
+                      {caption}
+                    </figcaption>
+                  )}
+                </figure>
+              )
+            }
+
+            return (
+              <figure className="my-6 w-full mx-auto">
+                <CloudImage
+                  fallbackUrl={src || ''}
+                  preset="inline"
+                  sizes="(max-width: 767px) 100vw, 896px"
+                  alt={alt || ''}
+                  onClick={src ? openGalleryLightbox : undefined}
+                  wrapperClassName={`w-full rounded-xl border border-[#374159]/60 shadow-lg overflow-hidden bg-[#1b2230] ${src ? 'cursor-zoom-in' : ''}`}
+                  className="w-full h-auto max-h-[520px] object-cover"
+                />
+                {(title || alt) && (
+                  <figcaption className={`text-center text-xs mt-2 ${isLight ? 'text-[#222936]/70' : 'text-[#E0F6C4]/55'}`}>
+                    {title || alt}
+                  </figcaption>
+                )}
+              </figure>
+            )
+          },
           a: ({ href, children }) => {
             const isExternal = /^https?:\/\//i.test(href || '')
             return (
@@ -316,6 +398,14 @@ export default function RichContent({ content = '', theme = 'dark' }) {
       >
         {content}
       </ReactMarkdown>
+
+      {lightboxState && (
+        <Lightbox
+          items={lightboxState.items}
+          initialIndex={lightboxState.index}
+          onClose={() => setLightboxState(null)}
+        />
+      )}
     </div>
   )
 }
